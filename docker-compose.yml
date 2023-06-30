@@ -1,0 +1,19 @@
+services:
+  automator:
+    build: .
+    image: austinjhunt/bizbuysell:latest
+    # Add volumes
+    volumes:
+      - ./files:/opt/data/files
+    environment:
+      # production status determines file paths used for drivers,
+      # temporary file directories, whether to use --headless arg for browser
+      - PRODUCTION=1
+      # make upload timeout longer than base web driver timeout
+      - WEBDRIVER_UPLOAD_TIMEOUT_SECONDS=30
+      - WEBDRIVER_TIMEOUT_SECONDS=15
+      # set FILE_SOURCE=local to use local file system
+      # set FILE_SOURCE=google_drive to use Google Drive as file source
+      # if using Google Drive, you must use "Anyone with the link can view"
+      # setting on all shared CSV links
+      - FILE_SOURCE=local

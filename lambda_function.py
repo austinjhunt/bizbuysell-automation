@@ -15,6 +15,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from urllib.parse import urlparse, urlunparse
 
+FILE_SOURCE = os.environ.get("FILE_SOURCE", "local") # alternative is google_drive
 PRODUCTION = os.environ.get("PRODUCTION", "0") == "1"
 TEMP_FOLDER = "/tmp" if PRODUCTION else os.path.dirname(__file__)
 WEBDRIVER_TIMEOUT_SECONDS = int(os.environ.get("WEBDRIVER_TIMEOUT_SECONDS", "15"))
@@ -509,9 +510,7 @@ def lambda_handler(event, context):
     logger.setLevel(level)
 
     logger.info(f"Starting Lambda Handler with verbose={verbose}", extra=extra)
-
-    ### LOGGING ###
-    # if not os.environ.get("MODE") or os.environ.get("MODE") == "single_user":
+ 
     if "mode" not in event or event["mode"] == "single_user":
         try:
             assert all(
@@ -626,16 +625,16 @@ if __name__ == "__main__":
     single_user_sample_event = {
         "mode": "single_user",
         "verbose": True,
-        "single_user_username": "agt3@wesellrestaurants.com",
-        "single_user_password": "wsr1234",
-        "single_user_google_drive_csv_link": "https://drive.google.com/file/d/1G06F3B8rT93Rcqbs13tFfT-CtL-OlLBK/view?usp=drive_link",
+        "single_user_username": "***",
+        "single_user_password": "***",
+        "single_user_google_drive_csv_link": "****",
     }
     lambda_handler(single_user_sample_event, None)
 
     # multi_user_sample_event = {
     #     "mode": "multi_user",
     #     "verbose": True,
-    #     "multi_user_google_drive_csv_link": "https://drive.google.com/file/d/13r6kV-7rf6yfyeRIFUo-neRk8viXBuAV/view?usp=drive_link",
+    #     "multi_user_google_drive_csv_link": "***",
     # }
 
     # lambda_handler(multi_user_sample_event, None)

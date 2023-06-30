@@ -72,5 +72,3 @@ def automate_multiple_user_sessions(self, csv_file_path: str = "") -> None:
 ```
 
 Moreover, after correspondence with Connor over email about the details of the upload process, the function is now able to fully handle both the **update of existing business listing records** as well as the **import of new business listing records** with default values selected for listing type and business type on new imports, which will help to reduce the amount of manual work that needs to be done after the automation completes.
-
-WeSellRestaurantsGithub
