@@ -1,0 +1,10 @@
+files
+venv
+venvubu
+.vscode
+logs
+python 
+chrome-dev
+vwin
+.env
+*.csv
