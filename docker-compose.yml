@@ -1,6 +1,6 @@
 services:
   automator:
-    container_name: bizbuysell-automator
+    container_name: bizbuysellautomator
     build: .
     image: austinjhunt/bizbuysell:latest
     # Add volumes
