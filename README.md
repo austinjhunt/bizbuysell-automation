@@ -40,23 +40,23 @@ The primary function (formatted as a Lambda Handler) takes in an event that cont
         "verbose": True,
         "single_user_username": "****",
         "single_user_password": "****",
-        "single_user_google_drive_csv_link": "https://drive.google.com/file/d/SOME_LONG_FILE_ID_HERE/view?usp=drive_link",
+        "multi_user_csv": "https://drive.google.com/file/d/SOME_LONG_FILE_ID_HERE/view?usp=drive_link",
     }
 ```
 
-In **single_user mode**, the batch upload automation is only going to be run for the **one user** whose creds are specified in the payload. The single_user parameters are both prefixed with single_user and they are all required. The creds allow the login to [BizBuySell](https://bizbuysell.com) with Selenium, and the CSV file link is consumed as a Google Drive link configured with an "Anyone with the link can view" setting from Google Drive. That CSV (`single_user_google_drive_csv_link`) needs to be present and should link to the batch upload CSV file for this user. The function will download the CSV as a temporary file, then upload that temporary file with the Batch Upload feature on BizBuySell using Selenium.
+In **single_user mode**, the batch upload automation is only going to be run for the **one user** whose creds are specified in the payload. The single_user parameters are both prefixed with single_user and they are all required. The creds allow the login to [BizBuySell](https://bizbuysell.com) with Selenium, and the CSV file link is consumed as a Google Drive link configured with an "Anyone with the link can view" setting from Google Drive. That CSV (`multi_user_csv`) needs to be present and should link to the batch upload CSV file for this user. The function will download the CSV as a temporary file, then upload that temporary file with the Batch Upload feature on BizBuySell using Selenium.
 
 ```
     multi_user_sample_event = {
          "mode": "multi_user",
          "verbose": True,
-         "multi_user_google_drive_csv_link": "https://drive.google.com/file/d/SOME_LONG_FILE_ID_HERE/view?usp=drive_link",
+         "multi_user_csv": "https://drive.google.com/file/d/SOME_LONG_FILE_ID_HERE/view?usp=drive_link",
     }
 
 ```
 
-**multi_user mode** is essentially just a wrapper around the single user mode in the form of a loop. In this case, though, there are no creds passed in the payload; there is just a `multi_user_csv_google_drive_link` whose value links to a CSV formatted as `username,password,csv_link`. Each record in that "multi user CSV" file should have a username and password to log in to BizBuySell with, and a Google Drive link to a batch upload CSV corresponding to that user.
-The following is what ultimately gets executed after `multi_user_csv_google_drive_link` gets downloaded to `csv_file_path`:
+**multi_user mode** is essentially just a wrapper around the single user mode in the form of a loop. In this case, though, there are no creds passed in the payload; there is just a `multi_user_csv` whose value links to a CSV formatted as `username,password,csv_link`. Each record in that "multi user CSV" file should have a username and password to log in to BizBuySell with, and a Google Drive link to a batch upload CSV corresponding to that user.
+The following is what ultimately gets executed after `multi_user_csv` gets downloaded to `csv_file_path`:
 
 ```
 def automate_multiple_user_sessions(self, csv_file_path: str = "") -> None:
@@ -72,3 +72,97 @@ def automate_multiple_user_sessions(self, csv_file_path: str = "") -> None:
 ```
 
 Moreover, after correspondence with Connor over email about the details of the upload process, the function is now able to fully handle both the **update of existing business listing records** as well as the **import of new business listing records** with default values selected for listing type and business type on new imports, which will help to reduce the amount of manual work that needs to be done after the automation completes.
+
+## File Sources - Important
+
+When running with AWS Lambda, CSV files are not specified as file system paths, but are instead specified with Google Drive links. That is the only option for AWS Lambda execution. Upload the CSV to Google Drive, right click, Share, and use the "Anyone with the link can view" setting. Then, copy the link and provide that as the value for the single/multi_user_csv parameter. If you are using multi user mode, the CSVs referenced for each user in the multi user CSV (where columns are username,password,csv_link) also need to be Google Drive links with the same "Anyone with the link can view" permission. Taking the previous multi_user example:
+
+```
+
+    multi_user_sample_event = {
+         "mode": "multi_user",
+         "verbose": True,
+         "multi_user_csv": "https://drive.google.com/file/d/SOME_LONG_FILE_ID_HERE/view?usp=drive_link",
+    }
+
+```
+
+the link specified for multi_user_csv itself has the "Anyone with the link can view" setting. Then, inside that CSV file, we have something like
+
+```
+username,password,csv_link
+user1,pass1,https://drive.google.com/file/d/SOME_LONG_FILE_ID1_HERE/view?usp=drive_link
+user2,pass2,https://drive.google.com/file/d/SOME_LONG_FILE_ID2_HERE/view?usp=drive_link
+user3,pass3,https://drive.google.com/file/d/SOME_LONG_FILE_ID3_HERE/view?usp=drive_link
+user4,pass4,https://drive.google.com/file/d/SOME_LONG_FILE_ID4_HERE/view?usp=drive_link
+user5,pass5,https://drive.google.com/file/d/SOME_LONG_FILE_ID5_HERE/view?usp=drive_link
+```
+
+Each of those CSVs on Google Drive also need to have that same permission setting to ensure the script has access to download them (since it is not leveraging authenticated requests against the Google Drive API).
+
+If you are not using AWS Lambda, and you are simply running it locally on your own server with Docker installed, you can use either Google Drive or local file system paths. You specify which you want to use using the `FILE_SOURCE=[local|google_drive]` environment variable. The local file system paths will leverage mounted volumes on the docker container. Note that outside of AWS Lambda, execution will be driven by **environment variables** rather than **lambda events**. See the [sample.env](sample.env) file for examples for both single_user and multi_user mode.
+
+## Running
+
+### With AWS Lambda
+
+To run the project with AWS Lambda (if you prefer to use files uploaded to Google Drive and drive execution using events with the option of triggering the Lambda function on a schedule or via API calls to an API Gateway):
+
+1. You will need to [install the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) if you have not already done so on your machine.
+2. Open AWS Lambda
+3. Open the Elastic Container Registry (ECR) service.
+4. Create a private repository (any name you'd like to use). No need to change any of the settings. Go ahead and create it.
+5. Once you create it, go ahead and open it up. On the top right, you should see a "View Push Commands" button. Click that. This will give you a set of commands you can use to build the Docker image from this project directory and deploy it to that new repository. These commands will depend on the AWS CLI being installed.
+6. After you run the provided commands (which will build, tag, and push the docker image to the repository), ECR is all set.
+7. Now open the Identity and Access Management (IAM) service. You need to create a role that will allow AWS lambda to use an image from your ECR repository.
+8. Open the Roles tab. Click Create Role.
+9. Click AWS service for Trusted Entity Type.
+10. Click Lambda for the use case. Click Next.
+11. On the "Add Permissions" page, in the permissions policies table, search for and check the following two policies:
+    a. AWSLambdaBasicExecutionRole - This provides write permissions to CloudWatch Logs.
+    b. AmazonEC2ContainerRegistryReadOnly - This provides read-only access to Amazon EC2 Container Registry repositories.
+12. Click next. Give the role a meaningful name, like "AWSLambdaBasicWithECRReadAccess". Give it a meaningful description as well, like "Allows Lambda functions to call AWS services on your behalf. Allow use of ECR container images."
+13. Create role.
+14. Open the Lambda service.
+15. Click Create Function.
+16. Choose Container Image (select a container image to deploy for your function).
+17. Give the function a meaningful name (e.g., bbs-batch-uploader)
+18. In a different tab, go back to your ECR repository for a moment, open it, and copy the URI of the image inside of that repository that you just built and pushed using the provided push commands.
+19. Now come back to the Lambda function that you are creating, and paste the URI you copied into the Container Image URI field. Leave x86_64 as the architecture.
+20. Expand "change default execution role". Choose the role that you just created (it will have the name that you specified). Choose "Use an existing role" and use the existing role dropdown to search for your custom role.
+21. Create function.
+22. Now that the function is created, open the Configuration tab.
+23. Go to Environment variables. Click Edit. Set the following environment variables:
+
+```
+PRODUCTION	=    1
+WEBDRIVER_TIMEOUT_SECONDS	=   20
+WEBDRIVER_UPLOAD_TIMEOUT_SECONDS	=   30
+```
+
+24. Go to General configuration, and click Edit.
+25. Set Memory to 1024MB. Set Ephemeral storage to 512MB. (downloaded files likely will not be this large; they are always deleted after download). Set Timeout to a value of your choosing; you may want a very long timeout (3 or more minutes) if you are going to be including ten or more users in a multi user mode execution. For just one user at a time, 1 minute is probably a safe bet unless their specific batch upload file is massive.
+26. Now you can manually trigger execution of your function using the Test tab. Click Test.
+27. Perhaps you want to create a single event for each specific user (named with the corresponding username) formatted in JSON as:
+
+```
+{
+  "mode": "single_user",
+  "verbose": true,
+  "single_user_username": "<username>",
+  "single_user_password": "<password>",
+  "single_user_google_drive_csv_link": "<google drive shared link to batch upload file with Anyone with link can view permission>"
+}
+```
+
+This would allow / require you to manually execute the function for each individual BBS user.
+Alternatively, you could create a single MultiUser event using the multi_user event JSON format shown above in this README.
+
+### Without Lambda
+
+To run the project without AWS Lambda (if you prefer to connect with and use your local file system), take the following steps:
+
+1. Install Docker on the machine which will be running this if you have not already done so.
+2. Copy [sample.env](sample.env) to your own `.env` file. Then change the values to match your specifications. The .env file is not included in git version control intentionally to prevent information leakage.
+3. Build the Docker image using the Docker Compose file: `docker-compose build` (run this from the root of this project; the command will detect and use [docker-compose.yml](docker-compose.yml) by default).
+4. Run the Docker image with `docker-compose up`; if you would like to run it in the background, you can use `docker-compose -d`. I recommend running in the foreground the first couple of times to keep track of the logs. If you do run it in the background, you can run `docker logs --follow bizbuysellautomator` to view and tail the logs of the running container. The container will stop when it completes successfully, or when it runs into an error.

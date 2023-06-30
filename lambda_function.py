@@ -163,13 +163,13 @@ class BizBuySellAutomator:
         level = logging.DEBUG if self.verbose else logging.INFO
         self.logger.setLevel(level)
 
-    def debug(self, msg):
+    def debug(self, msg) -> None:
         self.logger.debug(msg, extra={"prefix": self.name})
 
-    def info(self, msg):
+    def info(self, msg) -> None:
         self.logger.info(msg, extra={"prefix": self.name})
 
-    def error(self, msg):
+    def error(self, msg) -> None:
         self.logger.error(msg, extra={"prefix": self.name})
 
     def login(self, username: str = "", password: str = "") -> None:
@@ -487,6 +487,234 @@ class BizBuySellAutomator:
 
         self.driver.close()
         self.driver.quit()
+ 
+
+
+class Driver: 
+    def __init__(self, verbose: bool = False): 
+        self.verbose = verbose
+        self.setup_logging()
+
+    def setup_logging(self, name: str = "Driver") -> None:
+        """set up self.logger for Driver logging
+        Args:
+        name (str) - what this object should be called, will be used as logging prefix
+        """
+        self.name = name
+        self.logger = logging.getLogger(self.name)
+        self.logger.propagate = False
+        if self.logger.hasHandlers():
+            self.logger.handlers.clear()
+        format = "[%(prefix)s - %(filename)s:%(lineno)s - %(funcName)3s() ] %(message)s"
+        formatter = logging.Formatter(format)
+        handlerStream = logging.StreamHandler()
+        handlerStream.setFormatter(formatter)
+        self.logger.addHandler(handlerStream)
+        level = logging.DEBUG if self.verbose else logging.INFO
+        self.logger.setLevel(level)
+
+    def debug(self, msg) -> None:
+        self.logger.debug(msg, extra={"prefix": self.name})
+
+    def info(self, msg) -> None:
+        self.logger.info(msg, extra={"prefix": self.name})
+
+    def error(self, msg) -> None:
+        self.logger.error(msg, extra={"prefix": self.name})
+        
+    def run_local(self) -> None: 
+        """ Method to run the automation on a local server without AWS lambda.
+        Uses environment variables instead of lambda event to drive execution """
+        self.info("Running local execution with values from environment variables")
+        mode = os.environ.get("MODE", "single_user") # alt = multi_user
+        if mode == "single_user": 
+            try:
+                assert all(
+                    x in os.environ
+                    for x in [
+                        "single_user_password",
+                        "single_user_username",
+                        "single_user_csv",
+                    ]
+                )
+            except AssertionError as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {
+                        "error": (
+                            "must provide SINGLE_USER_PASSWORD, "
+                            "SINGLE_USER_USERNAME, and SINGLE_USER_CSV "
+                            "as environment variables for single_user mode"
+                        )
+                    },
+                }
+        elif mode == "multi_user":
+            try:
+                assert "MULTI_USER_CSV" in os.environ
+            except AssertionError as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {
+                        "error": (
+                            "must provide MULTI_USER_CSV as environment variable "
+                            "for multi_user mode - csv should include "
+                            "username,password,csv_link as columns"
+                        )
+                    },
+                } 
+            try:
+                logger.info("Creating automator with mode=multi_user", extra=extra)
+                automator = BizBuySellAutomator(verbose=verbose)
+                automator.init_driver()
+                # Download the CSV for multi-user execution
+                # should be formatted as username,password,csv_link where
+                # csv_link is the batch upload file for that user
+                multi_user_csv_path = (
+                    automator.google_drive_downloader.download_file_from_google_drive(
+                        shared_link=event["multi_user_csv"],
+                        temporary_filename="multi-user-tmp.csv",
+                    )
+                )
+                automator.automate_multiple_user_sessions(csv_file_path=multi_user_csv_path)
+                automator.quit()
+                return {
+                    "statusCode": 200,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {"success": (f"batch uploads complete for multiple users")},
+                }
+            except TimeoutException as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {"error": traceback.format_exc()},
+                }
+            except Exception as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {"error": traceback.format_exc()},
+                }
+
+    def run_lambda(self, event, context) -> None: 
+        """ Run automation with AWS lambda using event to drive execution """
+        self.info("Running AWS Lambda execution with values from event")
+        if "mode" not in event or event["mode"] == "single_user":
+            try:
+                assert all(
+                    x in event
+                    for x in [
+                        "single_user_password",
+                        "single_user_username",
+                        "single_user_csv",
+                    ]
+                )
+            except AssertionError as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {
+                        "error": (
+                            "must provide single_user_password, "
+                            "single_user_username, and single_user_csv "
+                            "in body for single_user mode"
+                        )
+                    },
+                }
+            logger.info("Creating automator with mode=single_user", extra=extra)
+            try:
+                automator = BizBuySellAutomator(verbose=verbose)
+                automator.init_driver()
+                automator.automate_single_user_session(
+                    username=event["single_user_username"],
+                    password=event["single_user_password"],
+                    csv_link=event["single_user_csv"],
+                )
+                automator.quit()
+                return {
+                    "statusCode": 200,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {
+                        "success": (
+                            f'batch upload of {event["single_user_csv"]}'
+                            f" complete for single_user {event['single_user_username']}"
+                        )
+                    },
+                }
+            except TimeoutException as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {"error": traceback.format_exc()},
+                }
+            except Exception as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {"error": traceback.format_exc()},
+                }
+
+        elif event["mode"] == "multi_user":
+            try:
+                assert "multi_user_csv" in event
+            except AssertionError as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {
+                        "error": (
+                            "must provide multi_user_csv in body "
+                            "for multi_user_mode - csv should include "
+                            "username,password,csv_link as columns"
+                        )
+                    },
+                } 
+            try:
+                logger.info("Creating automator with mode=multi_user", extra=extra)
+                automator = BizBuySellAutomator(verbose=verbose)
+                automator.init_driver()
+                # Download the CSV for multi-user execution
+                # should be formatted as username,password,csv_link where
+                # csv_link is the batch upload file for that user
+                multi_user_csv_path = (
+                    automator.google_drive_downloader.download_file_from_google_drive(
+                        shared_link=event["multi_user_csv"],
+                        temporary_filename="multi-user-tmp.csv",
+                    )
+                )
+                automator.automate_multiple_user_sessions(csv_file_path=multi_user_csv_path)
+                automator.quit()
+                return {
+                    "statusCode": 200,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {"success": (f"batch uploads complete for multiple users")},
+                }
+            except TimeoutException as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {"error": traceback.format_exc()},
+                }
+            except Exception as e:
+                logger.error(traceback.format_exc(), extra=extra)
+                return {
+                    "statusCode": 500,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {"error": traceback.format_exc()},
+                }
+
+
+
 
 
 def lambda_handler(event, context):
@@ -494,147 +722,13 @@ def lambda_handler(event, context):
     verbose = False
     if "verbose" in event:
         verbose = event["verbose"]
-    ### LOGGING ###
-    driver_name = "Driver"
-    extra = {"prefix": driver_name}
-    logger = logging.getLogger(driver_name)
-    logger.propagate = False
-    if logger.hasHandlers():
-        logger.handlers.clear()
-    format = "[%(prefix)s - %(filename)s:%(lineno)s - %(funcName)3s() ] %(message)s"
-    formatter = logging.Formatter(format)
-    handlerStream = logging.StreamHandler()
-    handlerStream.setFormatter(formatter)
-    logger.addHandler(handlerStream)
-    level = logging.DEBUG if verbose else logging.INFO
-    logger.setLevel(level)
 
-    logger.info(f"Starting Lambda Handler with verbose={verbose}", extra=extra)
+    driver = Driver(verbose=verbose)
+    driver.run_lambda(event, context)
+      
  
-    if "mode" not in event or event["mode"] == "single_user":
-        try:
-            assert all(
-                x in event
-                for x in [
-                    "single_user_password",
-                    "single_user_username",
-                    "single_user_google_drive_csv_link",
-                ]
-            )
-        except AssertionError as e:
-            logger.error(traceback.format_exc(), extra=extra)
-            return {
-                "statusCode": 500,
-                "headers": {"Content-Type": "application/json"},
-                "body": {
-                    "error": (
-                        "must provide single_user_password, "
-                        "single_user_username, and single_user_google_drive_csv_link "
-                        "in body for single_user mode"
-                    )
-                },
-            }
-        logger.info("Creating automator with mode=single_user", extra=extra)
-        try:
-            automator = BizBuySellAutomator(verbose=verbose)
-            automator.init_driver()
-            automator.automate_single_user_session(
-                username=event["single_user_username"],
-                password=event["single_user_password"],
-                csv_link=event["single_user_google_drive_csv_link"],
-            )
-            automator.quit()
-            return {
-                "statusCode": 200,
-                "headers": {"Content-Type": "application/json"},
-                "body": {
-                    "success": (
-                        f'batch upload of {event["single_user_google_drive_csv_link"]}'
-                        f" complete for single_user {event['single_user_username']}"
-                    )
-                },
-            }
-        except TimeoutException as e:
-            logger.error(traceback.format_exc(), extra=extra)
-            return {
-                "statusCode": 500,
-                "headers": {"Content-Type": "application/json"},
-                "body": {"error": traceback.format_exc()},
-            }
-        except Exception as e:
-            logger.error(traceback.format_exc(), extra=extra)
-            return {
-                "statusCode": 500,
-                "headers": {"Content-Type": "application/json"},
-                "body": {"error": traceback.format_exc()},
-            }
-
-    elif event["mode"] == "multi_user":
-        try:
-            assert "multi_user_google_drive_csv_link" in event
-        except AssertionError as e:
-            logger.error(traceback.format_exc(), extra=extra)
-            return {
-                "statusCode": 500,
-                "headers": {"Content-Type": "application/json"},
-                "body": {
-                    "error": (
-                        "must provide multi_user_google_drive_csv_link in body "
-                        "for multi_user_mode - csv should include "
-                        "username,password,csv_link as columns"
-                    )
-                },
-            }
-        logger.info("Creating automator with mode=multi_user", extra=extra)
-        try:
-            automator = BizBuySellAutomator(verbose=verbose)
-            automator.init_driver()
-            # Download the CSV for multi-user execution
-            # should be formatted as username,password,csv_link where
-            # csv_link is the batch upload file for that user
-            multi_user_csv_path = (
-                automator.google_drive_downloader.download_file_from_google_drive(
-                    shared_link=event["multi_user_google_drive_csv_link"],
-                    temporary_filename="multi-user-tmp.csv",
-                )
-            )
-            automator.automate_multiple_user_sessions(csv_file_path=multi_user_csv_path)
-            automator.quit()
-            return {
-                "statusCode": 200,
-                "headers": {"Content-Type": "application/json"},
-                "body": {"success": (f"batch uploads complete for multiple users")},
-            }
-        except TimeoutException as e:
-            logger.error(traceback.format_exc(), extra=extra)
-            return {
-                "statusCode": 500,
-                "headers": {"Content-Type": "application/json"},
-                "body": {"error": traceback.format_exc()},
-            }
-        except Exception as e:
-            logger.error(traceback.format_exc(), extra=extra)
-            return {
-                "statusCode": 500,
-                "headers": {"Content-Type": "application/json"},
-                "body": {"error": traceback.format_exc()},
-            }
-
-
+     
 if __name__ == "__main__":
-    single_user_sample_event = {
-        "mode": "single_user",
-        "verbose": True,
-        "single_user_username": "***",
-        "single_user_password": "***",
-        "single_user_google_drive_csv_link": "****",
-    }
-    lambda_handler(single_user_sample_event, None)
-
-    # multi_user_sample_event = {
-    #     "mode": "multi_user",
-    #     "verbose": True,
-    #     "multi_user_google_drive_csv_link": "***",
-    # }
-
-    # lambda_handler(multi_user_sample_event, None)
+    verbose = os.environ.get("VERBOSE", "0") == "1" 
+    driver = Driver(verbose=verbose)
+    driver.run_local()
