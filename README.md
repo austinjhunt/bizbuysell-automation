@@ -1,6 +1,6 @@
 # BizBuySell Automator
 
-This is a project completed for an UpWork freelance job (for client Robin Gagnon and [Connor Thomson](mailto:connor@wesellrestaurants.com)). The project leverages Selenium and Python to automate the batch uploading of business listings in CSV format to [BizBuySell](https://bizbuysell.com), the Internet's largest business for sale exchange.
+This is a project completed for an UpWork freelance job (for client Robin Gagnon and [Connor Thompson](mailto:connor@wesellrestaurants.com)). The project leverages Selenium and Python to automate the batch uploading of business listings in CSV format to [BizBuySell](https://bizbuysell.com), the Internet's largest business for sale exchange.
 
 # Problem Statement from UpWork Job
 
