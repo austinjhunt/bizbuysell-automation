@@ -447,6 +447,7 @@ class BizBuySellAutomator:
             )
         elif FILE_SOURCE == "local":
             # Already stored locally. Ensure path exists before using.
+            self.debug(f"Asserting path existence before continuing: {csv_link}")
             assert os.path.exists(csv_link)
             csv_file_path = csv_link
 
@@ -552,7 +553,7 @@ class Driver:
                     ]
                 )
             except AssertionError as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -564,9 +565,9 @@ class Driver:
                         )
                     },
                 }
-            logger.info("Creating automator with MODE=single_user", extra=extra)
+            self.info("Creating automator with MODE=single_user")
             try:
-                automator = BizBuySellAutomator(verbose=verbose)
+                automator = BizBuySellAutomator(verbose=self.verbose)
                 automator.init_driver()
                 automator.automate_single_user_session(
                     username=os.environ.get("SINGLE_USER_USERNAME", ""),
@@ -585,14 +586,14 @@ class Driver:
                     },
                 }
             except TimeoutException as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
                     "body": {"error": traceback.format_exc()},
                 }
             except Exception as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -603,7 +604,7 @@ class Driver:
             try:
                 assert "MULTI_USER_CSV" in os.environ
             except AssertionError as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -616,8 +617,8 @@ class Driver:
                     },
                 }
             try:
-                logger.info("Creating automator with mode=multi_user", extra=extra)
-                automator = BizBuySellAutomator(verbose=verbose)
+                self.info("Creating automator with mode=multi_user")
+                automator = BizBuySellAutomator(verbose=self.verbose)
                 automator.init_driver()
                 if FILE_SOURCE == "google_drive":
                     # Download the CSV for multi-user execution
@@ -641,14 +642,14 @@ class Driver:
                     "body": {"success": (f"batch uploads complete for multiple users")},
                 }
             except TimeoutException as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
                     "body": {"error": traceback.format_exc()},
                 }
             except Exception as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -669,7 +670,7 @@ class Driver:
                     ]
                 )
             except AssertionError as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -681,9 +682,9 @@ class Driver:
                         )
                     },
                 }
-            logger.info("Creating automator with mode=single_user", extra=extra)
+            self.info("Creating automator with mode=single_user")
             try:
-                automator = BizBuySellAutomator(verbose=verbose)
+                automator = BizBuySellAutomator(verbose=self.verbose)
                 automator.init_driver()
                 automator.automate_single_user_session(
                     username=event["single_user_username"],
@@ -702,14 +703,14 @@ class Driver:
                     },
                 }
             except TimeoutException as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
                     "body": {"error": traceback.format_exc()},
                 }
             except Exception as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -720,7 +721,7 @@ class Driver:
             try:
                 assert "multi_user_csv" in event
             except AssertionError as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -733,8 +734,8 @@ class Driver:
                     },
                 }
             try:
-                logger.info("Creating automator with mode=multi_user", extra=extra)
-                automator = BizBuySellAutomator(verbose=verbose)
+                self.info("Creating automator with mode=multi_user")
+                automator = BizBuySellAutomator(verbose=self.verbose)
                 automator.init_driver()
                 # Download the CSV for multi-user execution
                 # should be formatted as username,password,csv_link where
@@ -755,14 +756,14 @@ class Driver:
                     "body": {"success": (f"batch uploads complete for multiple users")},
                 }
             except TimeoutException as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
                     "body": {"error": traceback.format_exc()},
                 }
             except Exception as e:
-                logger.error(traceback.format_exc(), extra=extra)
+                self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -770,16 +771,22 @@ class Driver:
                 }
 
 
+def local_handler(event=None, context=None):
+    # Use main.local_handler in docker-compose.yml to override
+    # the default entrypoint (AWS Lambda) of main.lambda_handler
+    # local execution ignores event and context
+    verbose = os.environ.get("VERBOSE", "0") == "1"
+    driver = Driver(verbose=verbose)
+    driver.debug("hello?")
+    driver.run_local()
+
+
 def lambda_handler(event, context):
-    """Primary handler function for AWS Lambda to execute"""
+    """Primary handler function for AWS Lambda to execute. Referenced by Docker image
+    entrypoint in Dockerfile (main.lambda_handler). Overridden
+    with the above entrypoint for local non-lambda execution."""
     verbose = False
     if "verbose" in event:
         verbose = event["verbose"]
     driver = Driver(verbose=verbose)
     driver.run_lambda(event, context)
-
-
-if __name__ == "__main__":
-    verbose = os.environ.get("VERBOSE", "0") == "1"
-    driver = Driver(verbose=verbose)
-    driver.run_local()

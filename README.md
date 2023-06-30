@@ -164,5 +164,13 @@ To run the project without AWS Lambda (if you prefer to connect with and use you
 
 1. Install Docker on the machine which will be running this if you have not already done so.
 2. Copy [sample.env](sample.env) to your own `.env` file. Then change the values to match your specifications. The .env file is not included in git version control intentionally to prevent information leakage.
-3. Build the Docker image using the Docker Compose file: `docker-compose build` (run this from the root of this project; the command will detect and use [docker-compose.yml](docker-compose.yml) by default).
-4. Run the Docker image with `docker-compose up`; if you would like to run it in the background, you can use `docker-compose -d`. I recommend running in the foreground the first couple of times to keep track of the logs. If you do run it in the background, you can run `docker logs --follow bizbuysellautomator` to view and tail the logs of the running container. The container will stop when it completes successfully, or when it runs into an error.
+3. In the [docker-compsoe.yml](docker-compose.yml) file, you can feel free to change the value under `volumes`. This is just mapping a host folder (e.g., a `./files` folder in the root of this project) to the main files folder inside the Docker container. So, if you are generating your CSV files for batch uploads and storing them on your server in `/var/bbs-batch-upload-files/` as part of your business process, you could simply change the volumes section to look like:
+
+```
+volumes:
+  - /var/bbs-batch-upload-files:/opt/data/files
+```
+
+You could also change the second part after the colon if you want to change where files are stored inside the container. The key thing to note about that part of the volume is that is the base path you need to use for your environment variables like MULTI_USER_CSV and SINGLE_USER_CSV when using FILE_SOURCE=local.
+
+3. Run `./run-local.sh`. You can [view that script](run-local.sh) to see what it is doing in more detail.

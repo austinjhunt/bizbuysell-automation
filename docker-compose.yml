@@ -3,8 +3,12 @@ services:
     container_name: bizbuysellautomator
     build: .
     image: austinjhunt/bizbuysell:latest
+    ports:
+      # This allows local interaction with AWS Lambda Runtime Interface Emulator (RIE)
+      # in order to trigger function locally via CURL without the lambda service.
+      - 9000:8080
     # Add volumes
     volumes:
       - ./files:/opt/data/files
-    command: python lambda_function.py
+    command: ["main.local_handler"]
     env_file: .env
