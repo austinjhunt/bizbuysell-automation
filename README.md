@@ -50,7 +50,7 @@ In **single_user mode**, the batch upload automation is only going to be run for
     multi_user_sample_event = {
          "mode": "multi_user",
          "verbose": True,
-         "multi_user_google_drive_csv_link": "https://drive.google.com/file/d/13r6kV-7rf6yfyeRIFUo-neRk8viXBuAV/view?usp=drive_link",
+         "multi_user_google_drive_csv_link": "https://drive.google.com/file/d/SOME_LONG_FILE_ID_HERE/view?usp=drive_link",
     }
 
 ```
