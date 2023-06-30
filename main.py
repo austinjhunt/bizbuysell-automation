@@ -777,7 +777,6 @@ def local_handler(event=None, context=None):
     # local execution ignores event and context
     verbose = os.environ.get("VERBOSE", "0") == "1"
     driver = Driver(verbose=verbose)
-    driver.debug("hello?")
     driver.run_local()
 
 
