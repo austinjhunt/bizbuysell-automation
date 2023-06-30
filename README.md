@@ -109,10 +109,10 @@ If you are not using AWS Lambda, and you are simply running it locally on your o
 To run the project with AWS Lambda (if you prefer to use files uploaded to Google Drive and drive execution using events with the option of triggering the Lambda function on a schedule or via API calls to an API Gateway):
 
 1. You will need to [install the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) if you have not already done so on your machine.
-2. Open AWS Lambda
+2. Open AWS.
 3. Open the Elastic Container Registry (ECR) service.
-4. Create a private repository (any name you'd like to use). No need to change any of the settings. Go ahead and create it.
-5. Once you create it, go ahead and open it up. On the top right, you should see a "View Push Commands" button. Click that. This will give you a set of commands you can use to build the Docker image from this project directory and deploy it to that new repository. These commands will depend on the AWS CLI being installed.
+4. Create a private repository (any name you'd like to use). No need to change any of the other settings. Go ahead and create it.
+5. Once you create it, go ahead and open it up. On the top right, you should see a "View Push Commands" button. Click that. This will give you a set of commands you can use to build the Docker image from this project directory and deploy it to that new repository. These commands will depend on the AWS CLI being installed. You should go ahead and replace the lines in [deploy.sh](deploy.sh) with your own push commands that you just obtained.
 6. After you run the provided commands (which will build, tag, and push the docker image to the repository), ECR is all set.
 7. Now open the Identity and Access Management (IAM) service. You need to create a role that will allow AWS lambda to use an image from your ECR repository.
 8. Open the Roles tab. Click Create Role.
@@ -129,10 +129,10 @@ To run the project with AWS Lambda (if you prefer to use files uploaded to Googl
 17. Give the function a meaningful name (e.g., bbs-batch-uploader)
 18. In a different tab, go back to your ECR repository for a moment, open it, and copy the URI of the image inside of that repository that you just built and pushed using the provided push commands.
 19. Now come back to the Lambda function that you are creating, and paste the URI you copied into the Container Image URI field. Leave x86_64 as the architecture.
-20. Expand "change default execution role". Choose the role that you just created (it will have the name that you specified). Choose "Use an existing role" and use the existing role dropdown to search for your custom role.
+20. Expand "change default execution role". Choose "Use an existing role" and use the existing role dropdown to search for your custom role (it will have the name that you specified).
 21. Create function.
 22. Now that the function is created, open the Configuration tab.
-23. Go to Environment variables. Click Edit. Set the following environment variables:
+23. Go to Environment variables. Click Edit. Set the following environment variables (you may want to modify these if you notice later that your function is timing out):
 
 ```
 PRODUCTION	=    1
@@ -141,7 +141,7 @@ WEBDRIVER_UPLOAD_TIMEOUT_SECONDS	=   30
 ```
 
 24. Go to General configuration, and click Edit.
-25. Set Memory to 1024MB. Set Ephemeral storage to 512MB. (downloaded files likely will not be this large; they are always deleted after download). Set Timeout to a value of your choosing; you may want a very long timeout (3 or more minutes) if you are going to be including ten or more users in a multi user mode execution. For just one user at a time, 1 minute is probably a safe bet unless their specific batch upload file is massive.
+25. Set Memory to 1024MB. Set Ephemeral storage to 512MB. (downloaded files likely will not be this large; they are always deleted after download). Set Timeout to a value of your choosing; you may want a very long timeout (3 or more minutes) if you are going to be including ten or more users in a multi user mode execution. For just one user at a time, 1 minute is probably a safe bet unless their specific batch upload file is massive. For reference, 1m30s timed out for multi_user mode with the **five** test users that were provided.
 26. Now you can manually trigger execution of your function using the Test tab. Click Test.
 27. Perhaps you want to create a single event for each specific user (named with the corresponding username) formatted in JSON as:
 
@@ -151,26 +151,26 @@ WEBDRIVER_UPLOAD_TIMEOUT_SECONDS	=   30
   "verbose": true,
   "single_user_username": "<username>",
   "single_user_password": "<password>",
-  "single_user_google_drive_csv_link": "<google drive shared link to batch upload file with Anyone with link can view permission>"
+  "single_user_csv": "<google drive shared link to batch upload file with Anyone with link can view permission>"
 }
 ```
 
 This would allow / require you to manually execute the function for each individual BBS user.
-Alternatively, you could create a single MultiUser event using the multi_user event JSON format shown above in this README.
+Alternatively, you could create a single MultiUser event using the multi_user event JSON format shown above in this README, and work off the assumption that the multi user CSV linked in Google Drive will always be updated with all of the users and their creds/CSV links.
 
 ### Without Lambda
 
-To run the project without AWS Lambda (if you prefer to connect with and use your local file system), take the following steps:
+To run the project without AWS Lambda (if you prefer to connect with and use your local file system, perhaps for better security), take the following steps:
 
 1. Install Docker on the machine which will be running this if you have not already done so.
 2. Copy [sample.env](sample.env) to your own `.env` file. Then change the values to match your specifications. The .env file is not included in git version control intentionally to prevent information leakage.
-3. In the [docker-compsoe.yml](docker-compose.yml) file, you can feel free to change the value under `volumes`. This is just mapping a host folder (e.g., a `./files` folder in the root of this project) to the main files folder inside the Docker container. So, if you are generating your CSV files for batch uploads and storing them on your server in `/var/bbs-batch-upload-files/` as part of your business process, you could simply change the volumes section to look like:
+3. In the [docker-compose.yml](docker-compose.yml) file, you can feel free to change the value under `volumes`. This is just mapping a host folder (e.g., a `./files` folder in the root of this project) to the main files folder inside the Docker container. So, if you are generating your CSV files for batch uploads and storing them on your server in `/var/bbs-batch-upload-files/` as part of your business process, you could simply change the volumes section to look like:
 
 ```
 volumes:
   - /var/bbs-batch-upload-files:/opt/data/files
 ```
 
-You could also change the second part after the colon if you want to change where files are stored inside the container. The key thing to note about that part of the volume is that is the base path you need to use for your environment variables like MULTI_USER_CSV and SINGLE_USER_CSV when using FILE_SOURCE=local.
+You could also change the second part after the colon if you want to change where files are stored inside the container. The key thing to note about that part of the volume is that is the base path you need to use for your environment variables like MULTI_USER_CSV and SINGLE_USER_CSV when using FILE_SOURCE=local. You can also add multiple volumes if you have different locations on your host server storing different groups of files.
 
 3. Run `./run-local.sh`. You can [view that script](run-local.sh) to see what it is doing in more detail.
