@@ -1,96 +1,18 @@
-import traceback
-import json
 import os
 import csv
 import logging
-import requests
 from time import sleep
 from selenium import webdriver
 from tempfile import mkdtemp
 from selenium.webdriver.chrome.service import Service
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-from urllib.parse import urlparse, urlunparse
-
-FILE_SOURCE = os.environ.get("FILE_SOURCE", "google_drive")  # alternative is local
-PRODUCTION = os.environ.get("PRODUCTION", "0") == "1"
-TEMP_FOLDER = "/tmp" if PRODUCTION else os.path.dirname(__file__)
-WEBDRIVER_TIMEOUT_SECONDS = int(os.environ.get("WEBDRIVER_TIMEOUT_SECONDS", "15"))
-WEBDRIVER_UPLOAD_TIMEOUT_SECONDS = int(
-    os.environ.get("WEBDRIVER_UPLOAD_TIMEOUT_SECONDS", "30")
-)
-DEV_CHROME_PATH = os.path.join(os.path.dirname(__file__), "chrome-dev", "chrome.exe")
-DEV_CHROME_DRIVER_PATH = os.path.join(
-    os.path.dirname(__file__), "chrome-dev", "chromedriver.exe"
-)
-
-
-class all_elements_satisfy(object):
-    """
-    Custom condition to use for verifying that all Selenium web
-    elements match a certain condition
-    """
-
-    def __init__(self, locator, condition):
-        self.locator = locator
-        self.condition = condition
-
-    def __call__(self, driver):
-        elements = driver.find_elements(*self.locator)
-        return all(self.condition(element) for element in elements)
-
-
-class GoogleDriveFileDownloader:
-    """Utility class for downloading Google Drive files; methods provided by turdus-merula
-    on https://stackoverflow.com/questions/38511444/python-download-files-from-google-drive-using-url
-    """
-
-    def get_google_drive_file_id_from_shared_link(self, shared_link: str) -> str:
-        """
-        shared_link (str) - link copied with "Copy Link" feature in Google Drive
-        Returns:
-        file_id (str) - ID of the Google Drive file
-        """
-        return shared_link.split("https://drive.google.com/file/d/")[1].split("/")[0]
-
-    def download_file_from_google_drive(
-        self, shared_link: str = "", temporary_filename: str = ""
-    ) -> str:
-        """Download a file from Google Drive without SDK, just with file ID
-        Args:
-        id (str) - id of file on google drive
-        temporary_filename (str) - optional name of local file to which content should be written
-        Returns:
-        destination (str) - local path to downloaded file
-        """
-
-        if not temporary_filename:
-            temporary_filename = "tmp.csv"
-        destination = os.path.join(TEMP_FOLDER, temporary_filename)
-        session = requests.Session()
-        id = self.get_google_drive_file_id_from_shared_link(shared_link=shared_link)
-        url = f"https://docs.google.com/uc?id={id}&confirm=1&export=download"
-        response = session.get(url, stream=True)
-        self.save_response_content(response, destination)
-        return destination
-
-    def save_response_content(
-        self, response: requests.Response, destination: str = ""
-    ) -> None:
-        """Save response content (file download) in chunks
-        args:
-        response (requests.Response) - file download response
-        destination (str) - path to local file to which content should be written"""
-        CHUNK_SIZE = 32768
-
-        with open(destination, "wb") as f:
-            for chunk in response.iter_content(CHUNK_SIZE):
-                if chunk:  # filter out keep-alive new chunks
-                    f.write(chunk)
-
+from config import *
+from util import all_elements_satisfy
+from clients import GoogleDriveClient, S3Client
 
 class BizBuySellAutomator:
     def __init__(self, verbose: bool = False):
@@ -102,8 +24,10 @@ class BizBuySellAutomator:
         """
         self.verbose = verbose
         self.setup_logging()
-        self.google_drive_downloader = GoogleDriveFileDownloader()
-
+        if FILE_SOURCE == "google_drive":
+            self.gdrive_client = GoogleDriveClient()
+        elif FILE_SOURCE == "s3":
+            self.s3_client = S3Client() 
     def init_driver(self) -> None:
         """set self.driver to a Chrome driver using Selenium"""
         self.info("Creating Chrome driver")
@@ -441,7 +365,7 @@ class BizBuySellAutomator:
             # file not already on file system
             # Download the CSV for this user with the URL from the Lambda environment
             csv_file_path = (
-                self.google_drive_downloader.download_file_from_google_drive(
+                self.gdrive_client.download_file_from_google_drive(
                     shared_link=csv_link
                 )
             )
@@ -450,6 +374,8 @@ class BizBuySellAutomator:
             self.debug(f"Asserting path existence before continuing: {csv_link}")
             assert os.path.exists(csv_link)
             csv_file_path = csv_link
+
+        
 
         # Automate the upload of that CSV on local path with
         # the current user's web app session
@@ -503,289 +429,3 @@ class BizBuySellAutomator:
 
         self.driver.close()
         self.driver.quit()
-
-
-class Driver:
-    def __init__(self, verbose: bool = False):
-        self.verbose = verbose
-        self.setup_logging()
-
-    def setup_logging(self, name: str = "Driver") -> None:
-        """set up self.logger for Driver logging
-        Args:
-        name (str) - what this object should be called, will be used as logging prefix
-        """
-        self.name = name
-        self.logger = logging.getLogger(self.name)
-        self.logger.propagate = False
-        if self.logger.hasHandlers():
-            self.logger.handlers.clear()
-        format = "[%(prefix)s - %(filename)s:%(lineno)s - %(funcName)3s() ] %(message)s"
-        formatter = logging.Formatter(format)
-        handlerStream = logging.StreamHandler()
-        handlerStream.setFormatter(formatter)
-        self.logger.addHandler(handlerStream)
-        level = logging.DEBUG if self.verbose else logging.INFO
-        self.logger.setLevel(level)
-
-    def debug(self, msg) -> None:
-        self.logger.debug(msg, extra={"prefix": self.name})
-
-    def info(self, msg) -> None:
-        self.logger.info(msg, extra={"prefix": self.name})
-
-    def error(self, msg) -> None:
-        self.logger.error(msg, extra={"prefix": self.name})
-
-    def run_local(self) -> None:
-        """Method to run the automation on a local server without AWS lambda.
-        Uses environment variables instead of lambda event to drive execution"""
-        self.info("Running local execution with values from environment variables")
-        mode = os.environ.get("MODE", "single_user")  # alt = multi_user
-        if mode == "single_user":
-            try:
-                assert all(
-                    x in os.environ
-                    for x in [
-                        "SINGLE_USER_USERNAME",
-                        "SINGLE_USER_PASSWORD",
-                        "SINGLE_USER_CSV",
-                    ]
-                )
-            except AssertionError as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {
-                        "error": (
-                            "must provide SINGLE_USER_PASSWORD, "
-                            "SINGLE_USER_USERNAME, and SINGLE_USER_CSV "
-                            "as environment variables for single_user mode"
-                        )
-                    },
-                }
-            self.info("Creating automator with MODE=single_user")
-            try:
-                automator = BizBuySellAutomator(verbose=self.verbose)
-                automator.init_driver()
-                automator.automate_single_user_session(
-                    username=os.environ.get("SINGLE_USER_USERNAME", ""),
-                    password=os.environ.get("SINGLE_USER_PASSWORD", ""),
-                    csv_link=os.environ.get("SINGLE_USER_CSV", ""),
-                )
-                automator.quit()
-                return {
-                    "statusCode": 200,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {
-                        "success": (
-                            f'batch upload of {os.environ.get("SINGLE_USER_CSV")}'
-                            f' complete for single_user {os.environ.get("SINGLE_USER_USERNAME")}'
-                        )
-                    },
-                }
-            except TimeoutException as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
-                }
-            except Exception as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
-                }
-
-        elif mode == "multi_user":
-            try:
-                assert "MULTI_USER_CSV" in os.environ
-            except AssertionError as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {
-                        "error": (
-                            "must provide MULTI_USER_CSV as environment variable "
-                            "for multi_user mode - csv should include "
-                            "username,password,csv_link as columns"
-                        )
-                    },
-                }
-            try:
-                self.info("Creating automator with mode=multi_user")
-                automator = BizBuySellAutomator(verbose=self.verbose)
-                automator.init_driver()
-                if FILE_SOURCE == "google_drive":
-                    # Download the CSV for multi-user execution
-                    # should be formatted as username,password,csv_link where
-                    # csv_link is the batch upload file for that user
-                    multi_user_csv_path = automator.google_drive_downloader.download_file_from_google_drive(
-                        shared_link=os.environ.get("MULTI_USER_CSV", ""),
-                        temporary_filename="multi-user-tmp.csv",
-                    )
-                elif FILE_SOURCE == "local":
-                    # use the local FS path to the file; csv_link column should also specify local FS paths
-                    # for each user
-                    multi_user_csv_path = os.environ.get("MULTI_USER_CSV", "")
-                automator.automate_multiple_user_sessions(
-                    csv_file_path=multi_user_csv_path
-                )
-                automator.quit()
-                return {
-                    "statusCode": 200,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"success": (f"batch uploads complete for multiple users")},
-                }
-            except TimeoutException as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
-                }
-            except Exception as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
-                }
-
-    def run_lambda(self, event, context) -> None:
-        """Run automation with AWS lambda using event to drive execution"""
-        self.info("Running AWS Lambda execution with values from event")
-        if "mode" not in event or event["mode"] == "single_user":
-            try:
-                assert all(
-                    x in event
-                    for x in [
-                        "single_user_password",
-                        "single_user_username",
-                        "single_user_csv",
-                    ]
-                )
-            except AssertionError as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {
-                        "error": (
-                            "must provide single_user_password, "
-                            "single_user_username, and single_user_csv "
-                            "in body for single_user mode"
-                        )
-                    },
-                }
-            self.info("Creating automator with mode=single_user")
-            try:
-                automator = BizBuySellAutomator(verbose=self.verbose)
-                automator.init_driver()
-                automator.automate_single_user_session(
-                    username=event["single_user_username"],
-                    password=event["single_user_password"],
-                    csv_link=event["single_user_csv"],
-                )
-                automator.quit()
-                return {
-                    "statusCode": 200,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {
-                        "success": (
-                            f'batch upload of {event["single_user_csv"]}'
-                            f" complete for single_user {event['single_user_username']}"
-                        )
-                    },
-                }
-            except TimeoutException as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
-                }
-            except Exception as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
-                }
-
-        elif event["mode"] == "multi_user":
-            try:
-                assert "multi_user_csv" in event
-            except AssertionError as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {
-                        "error": (
-                            "must provide multi_user_csv in body "
-                            "for multi_user_mode - csv should include "
-                            "username,password,csv_link as columns"
-                        )
-                    },
-                }
-            try:
-                self.info("Creating automator with mode=multi_user")
-                automator = BizBuySellAutomator(verbose=self.verbose)
-                automator.init_driver()
-                # Download the CSV for multi-user execution
-                # should be formatted as username,password,csv_link where
-                # csv_link is the batch upload file for that user
-                multi_user_csv_path = (
-                    automator.google_drive_downloader.download_file_from_google_drive(
-                        shared_link=event["multi_user_csv"],
-                        temporary_filename="multi-user-tmp.csv",
-                    )
-                )
-                automator.automate_multiple_user_sessions(
-                    csv_file_path=multi_user_csv_path
-                )
-                automator.quit()
-                return {
-                    "statusCode": 200,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"success": (f"batch uploads complete for multiple users")},
-                }
-            except TimeoutException as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
-                }
-            except Exception as e:
-                self.error(traceback.format_exc())
-                return {
-                    "statusCode": 500,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
-                }
-
-
-def local_handler(event=None, context=None):
-    # Use main.local_handler in docker-compose.yml to override
-    # the default entrypoint (AWS Lambda) of main.lambda_handler
-    # local execution ignores event and context
-    verbose = os.environ.get("VERBOSE", "0") == "1"
-    driver = Driver(verbose=verbose)
-    driver.run_local()
-
-
-def lambda_handler(event, context):
-    """Primary handler function for AWS Lambda to execute. Referenced by Docker image
-    entrypoint in Dockerfile (main.lambda_handler). Overridden
-    with the above entrypoint for local non-lambda execution."""
-    verbose = False
-    if "verbose" in event:
-        verbose = event["verbose"]
-    driver = Driver(verbose=verbose)
-    driver.run_lambda(event, context)
