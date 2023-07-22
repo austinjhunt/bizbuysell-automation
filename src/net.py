@@ -6,8 +6,14 @@ import requests
 import traceback
 from log import BaseLogger  
 class NetworkUtility(BaseLogger):
-    def __init__(self):
-        super().__init__(name="NetUtil") 
+    def __init__(self, settings: dict = {}):
+        """ 
+        Args: 
+        settings (dict) - settings parsed from a combination of a lambda event and 
+        the environment variables (with priority given to lambda event in cases where 
+        vars are defined in both places)
+        """ 
+        super().__init__(name="NetUtil", settings=settings) 
 
     def get_public_ip(self):
         """Pull the public IP address of the device running this program

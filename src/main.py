@@ -1,15 +1,14 @@
 import os
 import boto3 
 from driver import Driver
-from config import get_settings
-from net import NetworkUtility
+from config import get_settings 
 
 def local_handler(event=None, context=None):
     # Use src.main.local_handler in docker-compose.yml to override
     # the default entrypoint (AWS Lambda) of main.lambda_handler
     # local execution ignores event and context
     settings = get_settings(event=event)
-    settings['env'] = 'local'
+    settings['ENV'] = 'local'
     driver = Driver(settings=settings)
 
     # If running locally AND using S3 as a file source, you
@@ -40,7 +39,7 @@ def lambda_handler(event, context):
     entrypoint in Dockerfile (src.main.lambda_handler). Overridden
     with the above entrypoint for local non-lambda execution."""
     settings = get_settings(event=event)
-    settings['env'] = 'lambda'
+    settings['ENV'] = 'lambda'
     if not settings["AWS_LAMBDA_ARN"] or not settings["AWS_LAMBDA_ECR_IMAGE_URI"]:
         return {
             "statusCode": 500,

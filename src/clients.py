@@ -15,7 +15,7 @@ class S3Client(BaseLogger):
         vars are defined in both places) 
         """
         super().__init__(name="S3Client", settings=settings) 
-        if self.settings['env'] == 'local':
+        if self.settings['ENV'] == 'local':
             # permissions come from passed credentials
             self.s3 = boto3.client(
                 "s3", 
@@ -23,7 +23,7 @@ class S3Client(BaseLogger):
                 aws_access_key_id=self.settings['AWS_ACCESS_KEY_ID'],
                 aws_secret_access_key=self.settings['AWS_SECRET_ACCESS_KEY']
                 )
-        elif self.settings['env'] == 'lambda': 
+        elif self.settings['ENV'] == 'lambda': 
             # permissions come from execution role
             self.s3 = boto3.client("s3", region_name=self.settings['AWS_S3_REGION'])
 

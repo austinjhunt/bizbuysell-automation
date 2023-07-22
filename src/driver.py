@@ -20,7 +20,7 @@ class Driver(BaseLogger):
         vars are defined in both places)
         """ 
         super().__init__(name="Driver", settings=settings)  
-        self.net = NetworkUtility()
+        self.net = NetworkUtility(settings=settings)
         self.ip = self.net.get_public_ip() 
 
     def run_local(self, event, context ) -> dict:
