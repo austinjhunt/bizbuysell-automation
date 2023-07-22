@@ -36,7 +36,7 @@ With Tor being a failed pursuit, I thought of another possible approach; could a
 
 Unfortunately, the disassociation operation was not allowed despite the necessary EC2 policies being granted to the role executing the operation.
 
-### Idea 3: UpdateFunctionCode
+### :star2: :star2: Idea 3: UpdateFunctionCode :star2: :star2:
 
 I came across [this video from Armando Sepulveda on YouTube](https://www.youtube.com/watch?v=8BbOVhHs950&ab_channel=ArmandoSepulveda-RealEstateAutomations) which explains a surprisingly simple method of rotating IP addresses of a running Lambda function. The key: re-deploying the function. The cool thing is that the Lambda client from `boto3` offers a method called `update_function_code` that allows one to automate the redeployment of a function. The even cooler thing is that the function itself can leverage this. So, I have just added an invocation to `update_function_code` after the execution of the main process. This is non-blocking, which means the function will start that new deployment but will continue with returning the HTTP response from the most recent execution. Each new invocation of the function runs it from a new IP triggered by the last invocation's redeployment of itself. To make this clear, I added an "ip" key in the JSON response from the Lambda function.
 
