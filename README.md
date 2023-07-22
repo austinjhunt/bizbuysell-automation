@@ -129,7 +129,7 @@ To run the project with AWS Lambda (very useful if you want to drive execution u
 9. Click AWS service for Trusted Entity Type.
 10. Click Lambda for the use case. Click Next.
 11. We need to create a custom policy to grant permission to the Lambda to update its own function code and access your S3 bucket. Click Create Policy. This will open a new tab. We will return back to the Role tab in a moment. Under Select a Service, choose the lambda service. Choose the "Write" dropdown. Check "UpdateFunctionCode". Under Resources, choose Specific, and click Add ARN to restrict access. Choose "This account", provide the region in which your function will live (e.g., us-east-2), and provide the name of your Lambda function (you haven't created it yet, but enter the name you plan on using.) Click Add ARNS.
-12. IF YOU ARE GOING TO USE S3 AS A FILE SOURCE: Click Add more permissions. Select S3 as the service. Click All S3 actions. Under Resources, choose specific, and next to "Bucket", click Add ARN. Provide the name of the S3 bucket you are going to use (if you haven't already created a bucket, enter the name you plan on using). Click Add ARNS. At this point, if you click the JSON editor, you'll have something like this:
+12. IF YOU ARE GOING TO USE S3 AS A FILE SOURCE: Click Add more permissions. Select S3 as the service. Check "All S3 actions (S3:\*)". Under Resources, choose specific, and next to "bucket", click Add ARN. Provide the name of the S3 bucket you are going to use (if you haven't already created a bucket, enter the name you plan on using). Click Add ARNS. Now, next to object, choose Add ARN to restrict access. Provide the bucket name again, and then check "any object name". Click Add ARNs.At this point, if you click the JSON editor, you'll have something like this:
 
 ```
 {
@@ -138,14 +138,34 @@ To run the project with AWS Lambda (very useful if you want to drive execution u
 		{
 			"Sid": "VisualEditor0",
 			"Effect": "Allow",
-			"Action": "lambda:UpdateFunctionCode",
-			"Resource": "arn:aws:lambda:us-east-2:OWNERACCOUNTNUMBER:function:myFunctionName"
+			"Action": [
+				"lambda:UpdateFunctionCode",
+				"s3:*"
+			],
+			"Resource": [
+				"arn:aws:lambda:REGION:OWNER_ACCOUNT_NUMBER:function:FUNCTION_NAME",
+				"arn:aws:s3:::BUCKETNAME",
+				"arn:aws:s3:::BUCKETNAME/*"
+			]
 		},
 		{
-			"Sid": "VisualEditor2",
+			"Sid": "VisualEditor1",
 			"Effect": "Allow",
-			"Action": "s3:*",
-			"Resource": "arn:aws:s3:::myBucketName"
+			"Action": [
+				"s3:ListStorageLensConfigurations",
+				"s3:ListAccessPointsForObjectLambda",
+				"s3:GetAccessPoint",
+				"s3:PutAccountPublicAccessBlock",
+				"s3:GetAccountPublicAccessBlock",
+				"s3:ListAllMyBuckets",
+				"s3:ListAccessPoints",
+				"s3:PutAccessPointPublicAccessBlock",
+				"s3:ListJobs",
+				"s3:PutStorageLensConfiguration",
+				"s3:ListMultiRegionAccessPoints",
+				"s3:CreateJob"
+			],
+			"Resource": "*"
 		}
 	]
 }
