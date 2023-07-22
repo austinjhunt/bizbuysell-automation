@@ -1,21 +1,31 @@
 import os
 import requests
-import boto3
-from config import TEMP_FOLDER, AWS_S3_REGION, WEBDRIVER_TIMEOUT_SECONDS
+import boto3 
 from log import BaseLogger
 
 
 class S3Client(BaseLogger):
     """Client for reading files from AWS S3"""
 
-    def __init__(self):
-        super().__init__(name="S3Client")
-        self.session = boto3.Session(
-            aws_access_key_id="<your_access_key_id>",
-            aws_secret_access_key="<your_secret_access_key>",
-        )
-
-        self.s3 = boto3.client("s3", region_name=AWS_S3_REGION)
+    def __init__(self,  settings: dict = {}):
+        """ 
+        Args: 
+        settings (dict) - settings parsed from a combination of a lambda event and 
+        the environment variables (with priority given to lambda event in cases where 
+        vars are defined in both places) 
+        """
+        super().__init__(name="S3Client", settings=settings) 
+        if self.settings['env'] == 'local':
+            # permissions come from passed credentials
+            self.s3 = boto3.client(
+                "s3", 
+                region_name=self.settings['AWS_S3_REGION'],
+                aws_access_key_id=self.settings['AWS_ACCESS_KEY_ID'],
+                aws_secret_access_key=self.settings['AWS_SECRET_ACCESS_KEY']
+                )
+        elif self.settings['env'] == 'lambda': 
+            # permissions come from execution role
+            self.s3 = boto3.client("s3", region_name=self.settings['AWS_S3_REGION'])
 
     def get_all_files_from_s3_bucket(self, bucket_name: str = ""):
         """
@@ -74,7 +84,7 @@ class S3Client(BaseLogger):
         )
         if not temporary_filename:
             temporary_filename = "tmp.csv"
-        destination = os.path.join(TEMP_FOLDER, temporary_filename)
+        destination = os.path.join(self.settings['TEMP_FOLDER'], temporary_filename)
         self.s3.download_file(Bucket=bucket_name, Key=file_key, Filename=destination)
         return destination
 
@@ -84,8 +94,14 @@ class GoogleDriveClient(BaseLogger):
     turdus-merula on https://stackoverflow.com/questions/38511444/python-download-files-from-google-drive-using-url
     """
 
-    def __init__(self):
-        super().__init__(name="S3Client")
+    def __init__(self, settings: dict = {}):
+        """ 
+        Args: 
+        settings (dict) - settings parsed from a combination of a lambda event and 
+        the environment variables (with priority given to lambda event in cases where 
+        vars are defined in both places) 
+        """
+        super().__init__(name="S3Client", settings=settings)
 
     def get_google_drive_file_id_from_shared_link(self, shared_link: str) -> str:
         """
@@ -112,7 +128,7 @@ class GoogleDriveClient(BaseLogger):
         )
         if not temporary_filename:
             temporary_filename = "tmp.csv"
-        destination = os.path.join(TEMP_FOLDER, temporary_filename)
+        destination = os.path.join(self.settings['TEMP_FOLDER'], temporary_filename)
         session = requests.Session()
         id = self.get_google_drive_file_id_from_shared_link(shared_link=shared_link)
         url = f"https://docs.google.com/uc?id={id}&confirm=1&export=download"
@@ -127,8 +143,7 @@ class GoogleDriveClient(BaseLogger):
         args:
         response (requests.Response) - file download response
         destination (str) - path to local file to which content should be written"""
-        CHUNK_SIZE = 32768
-
+        CHUNK_SIZE = 32768 
         with open(destination, "wb") as f:
             for chunk in response.iter_content(CHUNK_SIZE):
                 if chunk:  # filter out keep-alive new chunks

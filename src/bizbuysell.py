@@ -9,8 +9,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from config import * 
+from selenium.webdriver.support import expected_conditions as EC 
 from clients import GoogleDriveClient, S3Client
 from log import BaseLogger 
 from net import NetworkUtility
@@ -42,12 +41,10 @@ class BizBuySellAutomator(BaseLogger):
         the environment variables (with priority given to lambda event in cases where 
         vars are defined in both places)
         """ 
-        super().__init__(name="BizBuySellAutomator")
-        self.net = network_utility
-        self.settings = settings
-
+        super().__init__(name="BizBuySellAutomator", settings=settings)
+        self.net = network_utility  
         if self.settings['FILE_SOURCE'] == "google_drive":
-            self.gdrive_client = GoogleDriveClient() 
+            self.gdrive_client = GoogleDriveClient(settings=self.settings) 
         elif self.settings['FILE_SOURCE'] == "s3":
             try:
                 # required variable is present
@@ -56,7 +53,7 @@ class BizBuySellAutomator(BaseLogger):
                 ])
             except AssertionError as e:
                 self.error(traceback.format_exc()) 
-            self.s3_client = S3Client()
+            self.s3_client = S3Client(settings=self.settings)
 
     def init_driver(self) -> None:
         """set self.driver to a Chrome driver using Selenium"""

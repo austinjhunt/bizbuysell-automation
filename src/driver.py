@@ -1,11 +1,9 @@
 import logging
 import os
-import traceback
-import boto3 
+import traceback 
 import subprocess
 import time
-from selenium.common.exceptions import TimeoutException
-from config import *
+from selenium.common.exceptions import TimeoutException 
 from bizbuysell import BizBuySellAutomator
 from log import BaseLogger
 from net import NetworkUtility
@@ -21,9 +19,7 @@ class Driver(BaseLogger):
         the environment variables (with priority given to lambda event in cases where 
         vars are defined in both places)
         """ 
-        super().__init__(name="Driver")
-        self.settings = settings
-        self.lambda_client = boto3.client("lambda", region_name=self.settings['AWS_S3_REGION'])
+        super().__init__(name="Driver", settings=settings)  
         self.net = NetworkUtility()
         self.ip = self.net.get_public_ip() 
 
@@ -59,7 +55,7 @@ class Driver(BaseLogger):
                 }
             self.info("Creating automator with MODE=single_user")
             try:
-                automator = BizBuySellAutomator(network_utility=self.net)
+                automator = BizBuySellAutomator(network_utility=self.net, settings=self.settings)
                 automator.init_driver()
                 automator.automate_single_user_session(
                     username=self.settings['SINGLE_USER_USERNAME'],
@@ -113,7 +109,7 @@ class Driver(BaseLogger):
                 }
             try:
                 self.info("Creating automator with mode=multi_user")
-                automator = BizBuySellAutomator(network_utility=self.net)
+                automator = BizBuySellAutomator(network_utility=self.net, settings=self.settings)
                 automator.init_driver()
                 if self.settings['FILE_SOURCE'] == "google_drive":
                     # Download the CSV for multi-user execution
@@ -212,7 +208,7 @@ class Driver(BaseLogger):
                 }
             self.info("Creating automator with MODE=single_user")
             try:
-                automator = BizBuySellAutomator(network_utility=self.net)
+                automator = BizBuySellAutomator(network_utility=self.net, settings=self.settings)
                 automator.init_driver()
                 automator.automate_single_user_session(
                     username=self.settings["SINGLE_USER_USERNAME"],
@@ -265,7 +261,7 @@ class Driver(BaseLogger):
                 }
             try:
                 self.info("Creating automator with MODE=multi_user")
-                automator = BizBuySellAutomator(network_utility=self.net)
+                automator = BizBuySellAutomator(network_utility=self.net, settings=self.settings)
                 automator.init_driver()
                 if self.settings['FILE_SOURCE'] == "google_drive":
                     # Download the CSV for multi-user execution

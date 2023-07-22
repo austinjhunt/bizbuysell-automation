@@ -1,14 +1,19 @@
 import io
-import logging
-import boto3
-from config import VERBOSE
-
+import logging 
 """ Parent class inherited by other classes for handling logging """
 
 
 class BaseLogger:
-    def __init__(self, name: str = ""):
+    def __init__(self, name: str = "", settings: dict = {}):
+        """ 
+        Args:
+        name (str) - name for this instance, will appear as a prefix in log statements
+        settings (dict) - settings parsed from a combination of a lambda event and 
+        the environment variables (with priority given to lambda event in cases where 
+        vars are defined in both places)
+        """
         self.name = name
+        self.settings = settings
         self.setup_logging()
 
     def setup_logging(self) -> None:
@@ -18,7 +23,7 @@ class BaseLogger:
         """
         self.logger = logging.getLogger(self.name)
         self.logger.propagate = False
-        level = logging.DEBUG if VERBOSE else logging.INFO
+        level = logging.DEBUG if self.settings['VERBOSE'] else logging.INFO
         self.logger.setLevel(level)
 
         if self.logger.hasHandlers():

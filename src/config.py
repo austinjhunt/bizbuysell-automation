@@ -1,28 +1,7 @@
 import os
 
 """ Configuration file for parsing environment variables into Python variables 
-used by other modules """
-
-
-WEBDRIVER_TIMEOUT_SECONDS = int(os.environ.get("WEBDRIVER_TIMEOUT_SECONDS", "15"))
-WEBDRIVER_UPLOAD_TIMEOUT_SECONDS = int(
-    os.environ.get("WEBDRIVER_UPLOAD_TIMEOUT_SECONDS", "30")
-)
-
-VERBOSE = os.environ.get("VERBOSE", "0") == "1"
-MODE = os.environ.get("MODE", "single_user")
-SINGLE_USER_USERNAME = os.environ.get("SINGLE_USER_USERNAME", None)
-SINGLE_USER_PASSWORD = os.environ.get("SINGLE_USER_PASSWORD", None)
-SINGLE_USER_CSV = os.environ.get("SINGLE_USER_CSV", None)
-MULTI_USER_CSV = os.environ.get("MULTI_USER_CSV", None)
-AWS_S3_REGION = os.environ.get("AWS_S3_REGION", None)
-AWS_S3_BUCKET = os.environ.get("AWS_S3_BUCKET", None)
-AWS_LAMBDA_ARN = os.environ.get("AWS_LAMBDA_ARN", None)
-AWS_LAMBDA_ECR_IMAGE_URI = os.environ.get("AWS_LAMBDA_ECR_IMAGE_URI", None)
-FILE_SOURCE = os.environ.get("FILE_SOURCE", "google_drive")  # alternative is local
-PRODUCTION = os.environ.get("PRODUCTION", "0") == "1"
-VERBOSE = os.environ.get("VERBOSE", "0") == "1"
-
+used by other modules """  
 
 def get_settings(event: dict = {}):
     """
@@ -50,6 +29,8 @@ def get_settings(event: dict = {}):
             "AWS_LAMBDA_ARN",
             "AWS_LAMBDA_ECR_IMAGE_URI",
             "FILE_SOURCE",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY"
         ]
     }
     # now handle the ints

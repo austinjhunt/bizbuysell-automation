@@ -4,9 +4,7 @@ the context of that AWS function """
  
 import requests  
 import traceback
-from log import BaseLogger 
-
-
+from log import BaseLogger  
 class NetworkUtility(BaseLogger):
     def __init__(self):
         super().__init__(name="NetUtil") 
