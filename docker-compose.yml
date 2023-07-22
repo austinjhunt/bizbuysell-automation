@@ -10,5 +10,5 @@ services:
     # Add volumes
     volumes:
       - ./files:/opt/data/files
-    command: ["main.local_handler"]
+    command: ["src.main.local_handler"]
     env_file: .env

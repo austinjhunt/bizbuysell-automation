@@ -1,58 +1,48 @@
 import logging
 import os
 import traceback
-import logging
-import os
-import logging
+import boto3 
+import subprocess
+import time
 from selenium.common.exceptions import TimeoutException
 from config import *
 from bizbuysell import BizBuySellAutomator
+from log import BaseLogger
+from net import NetworkUtility
 
 
-class Driver:
-    def __init__(self, verbose: bool = False):
-        self.verbose = verbose
-        self.setup_logging()
+class Driver(BaseLogger):
+    """ This module drives execution of the automation by 
+    instantiating an automator object and calling its methods """
+    def __init__(self, settings: dict = {}):
+        """ 
+        Args: 
+        settings (dict) - settings parsed from a combination of a lambda event and 
+        the environment variables (with priority given to lambda event in cases where 
+        vars are defined in both places)
+        """ 
+        super().__init__(name="Driver")
+        self.settings = settings
+        self.lambda_client = boto3.client("lambda", region_name=self.settings['AWS_S3_REGION'])
+        self.net = NetworkUtility()
+        self.ip = self.net.get_public_ip() 
 
-    def setup_logging(self, name: str = "Driver") -> None:
-        """set up self.logger for Driver logging
-        Args:
-        name (str) - what this object should be called, will be used as logging prefix
-        """
-        self.name = name
-        self.logger = logging.getLogger(self.name)
-        self.logger.propagate = False
-        if self.logger.hasHandlers():
-            self.logger.handlers.clear()
-        format = "[%(prefix)s - %(filename)s:%(lineno)s - %(funcName)3s() ] %(message)s"
-        formatter = logging.Formatter(format)
-        handlerStream = logging.StreamHandler()
-        handlerStream.setFormatter(formatter)
-        self.logger.addHandler(handlerStream)
-        level = logging.DEBUG if self.verbose else logging.INFO
-        self.logger.setLevel(level)
-
-    def debug(self, msg) -> None:
-        self.logger.debug(msg, extra={"prefix": self.name})
-
-    def info(self, msg) -> None:
-        self.logger.info(msg, extra={"prefix": self.name})
-
-    def error(self, msg) -> None:
-        self.logger.error(msg, extra={"prefix": self.name})
-
-    def run_local(self) -> None:
+    def run_local(self, event, context ) -> dict:
         """Method to run the automation on a local server without AWS lambda.
         Uses environment variables instead of lambda event to drive execution"""
-        self.info("Running local execution with values from environment variables")
-        mode = MODE  # alt = multi_user
-        if mode == "single_user":
+        self.info("Running local execution with values from environment variables") 
+
+        if self.settings['MODE'] == 'single_user':
             try:
                 # required variables are present
-                assert all(x != "" for x in [
-                           SINGLE_USER_PASSWORD, 
-                           SINGLE_USER_USERNAME, 
-                           SINGLE_USER_CSV])
+                assert all(
+                    x is not None
+                    for x in [
+                        self.settings['SINGLE_USER_PASSWORD'],
+                        self.settings['SINGLE_USER_USERNAME'],
+                        self.settings['SINGLE_USER_CSV'],
+                    ]
+                )
             except AssertionError as e:
                 self.error(traceback.format_exc())
                 return {
@@ -63,17 +53,18 @@ class Driver:
                             "must provide SINGLE_USER_PASSWORD, "
                             "SINGLE_USER_USERNAME, and SINGLE_USER_CSV "
                             "as environment variables for single_user mode"
-                        )
+                        ),
+                        "ip": self.ip,
                     },
                 }
             self.info("Creating automator with MODE=single_user")
             try:
-                automator = BizBuySellAutomator(verbose=self.verbose)
+                automator = BizBuySellAutomator(network_utility=self.net)
                 automator.init_driver()
                 automator.automate_single_user_session(
-                    username=SINGLE_USER_USERNAME,
-                    password=SINGLE_USER_PASSWORD,
-                    csv_link=SINGLE_USER_CSV
+                    username=self.settings['SINGLE_USER_USERNAME'],
+                    password=self.settings['SINGLE_USER_PASSWORD'],
+                    csv_path=self.settings['SINGLE_USER_CSV'],
                 )
                 automator.quit()
                 return {
@@ -81,9 +72,10 @@ class Driver:
                     "headers": {"Content-Type": "application/json"},
                     "body": {
                         "success": (
-                            f'batch upload of {SINGLE_USER_CSV}'
-                            f' complete for single_user {SINGLE_USER_USERNAME}'
-                        )
+                            f"batch upload of {self.settings['SINGLE_USER_CSV']}"
+                            f" complete for single_user {self.settings['SINGLE_USER_USERNAME']}"
+                        ),
+                        "ip": self.ip,
                     },
                 }
             except TimeoutException as e:
@@ -91,20 +83,20 @@ class Driver:
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
+                    "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
             except Exception as e:
                 self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
+                    "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
 
-        elif mode == "multi_user":
+        elif self.settings['MODE'] == "multi_user":
             try:
-                # required variable is present 
-                assert MULTI_USER_CSV != ""
+                # required variable is present
+                assert self.settings['MULTI_USER_CSV'] is not None
             except AssertionError as e:
                 self.error(traceback.format_exc())
                 return {
@@ -114,26 +106,59 @@ class Driver:
                         "error": (
                             "must provide MULTI_USER_CSV as environment variable "
                             "for multi_user mode - csv should include "
-                            "username,password,csv_link as columns"
-                        )
+                            "username,password,csv_path as columns"
+                        ),
+                        "ip": self.ip,
                     },
                 }
             try:
                 self.info("Creating automator with mode=multi_user")
-                automator = BizBuySellAutomator(verbose=self.verbose)
+                automator = BizBuySellAutomator(network_utility=self.net)
                 automator.init_driver()
-                if FILE_SOURCE == "google_drive":
+                if self.settings['FILE_SOURCE'] == "google_drive":
                     # Download the CSV for multi-user execution
-                    # should be formatted as username,password,csv_link where
-                    # csv_link is the batch upload file for that user
-                    multi_user_csv_path = automator.gdrive_client.download_file_from_google_drive(
-                        shared_link=MULTI_USER_CSV,
-                        temporary_filename="multi-user-tmp.csv",
+                    # should be formatted as username,password,csv_path where
+                    # csv_path is the batch upload file for that user
+                    multi_user_csv_path = (
+                        automator.gdrive_client.download_file_from_google_drive(
+                            shared_link=self.settings['MULTI_USER_CSV'],
+                            temporary_filename="multi-user-tmp.csv",
+                        )
                     )
-                elif FILE_SOURCE == "local":
-                    # use the local FS path to the file; csv_link column should also specify local FS paths
+                elif self.settings['FILE_SOURCE'] == "local":
+                    # use the local FS path to the file; csv_path column should also specify local FS paths
                     # for each user
-                    multi_user_csv_path = MULTI_USER_CSV
+                    multi_user_csv_path = self.settings['MULTI_USER_CSV']
+
+                elif self.settings['FILE_SOURCE'] == "s3":
+                    try:
+                        # required variable is present
+                        assert all(
+                            x is not None for x in [
+                                self.settings['AWS_S3_BUCKET'], 
+                                self.settings['AWS_S3_REGION']]
+                        )
+                    except AssertionError as e:
+                        self.error(traceback.format_exc())
+                        return {
+                            "statusCode": 500,
+                            "headers": {"Content-Type": "application/json"},
+                            "body": {
+                                "error": (
+                                    "must provide AWS_S3_REGION and AWS_S3_BUCKET if"
+                                    " FILE_SOURCE=s3"
+                                ),
+                                "ip": self.ip,
+                            },
+                        }
+                    multi_user_csv_path = (
+                        automator.s3_client.download_file_from_s3_bucket(
+                            bucket_name=self.settings['AWS_S3_BUCKET'],
+                            file_key=self.settings['MULTI_USER_CSV'],
+                            temporary_filename="multi-user-tmp.csv",
+                        )
+                    )
+
                 automator.automate_multiple_user_sessions(
                     csv_file_path=multi_user_csv_path
                 )
@@ -148,28 +173,28 @@ class Driver:
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
+                    "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
             except Exception as e:
                 self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
-                }
+                    "body": {"error": traceback.format_exc(), "ip": self.ip},
+                } 
 
     def run_lambda(self, event, context) -> None:
         """Run automation with AWS lambda using event to drive execution"""
         self.info("Running AWS Lambda execution with values from event")
-        if "mode" not in event or event["mode"] == "single_user":
+        # Try to pull args from event first. If not present in event, then try environment variables.
+        
+
+        if self.settings["MODE"] == "single_user":
             try:
+                # Required single user variables must be present
                 assert all(
-                    x in event
-                    for x in [
-                        "single_user_password",
-                        "single_user_username",
-                        "single_user_csv",
-                    ]
+                    self.settings[f"SINGLE_USER_{x}"] is not None
+                    for x in ["USERNAME", "PASSWORD", "CSV"]
                 )
             except AssertionError as e:
                 self.error(traceback.format_exc())
@@ -178,20 +203,21 @@ class Driver:
                     "headers": {"Content-Type": "application/json"},
                     "body": {
                         "error": (
-                            "must provide single_user_password, "
-                            "single_user_username, and single_user_csv "
+                            "must provide SINGLE_USER_PASSWORD, "
+                            "SINGLE_USER_USERNAME, and SINGLE_USER_CSV "
                             "in body for single_user mode"
-                        )
+                        ),
+                        "ip": self.ip,
                     },
                 }
-            self.info("Creating automator with mode=single_user")
+            self.info("Creating automator with MODE=single_user")
             try:
-                automator = BizBuySellAutomator(verbose=self.verbose)
+                automator = BizBuySellAutomator(network_utility=self.net)
                 automator.init_driver()
                 automator.automate_single_user_session(
-                    username=event["single_user_username"],
-                    password=event["single_user_password"],
-                    csv_link=event["single_user_csv"],
+                    username=self.settings["SINGLE_USER_USERNAME"],
+                    password=self.settings["SINGLE_USER_PASSWORD"],
+                    csv_path=self.settings["SINGLE_USER_CSV"],
                 )
                 automator.quit()
                 return {
@@ -199,9 +225,10 @@ class Driver:
                     "headers": {"Content-Type": "application/json"},
                     "body": {
                         "success": (
-                            f'batch upload of {event["single_user_csv"]}'
-                            f" complete for single_user {event['single_user_username']}"
-                        )
+                            f'batch upload of {self.settings["SINGLE_USER_CSV"]}'
+                            f" complete for single_user {self.settings['SINGLE_USER_USERNAME']}"
+                        ),
+                        "ip": self.ip,
                     },
                 }
             except TimeoutException as e:
@@ -209,19 +236,19 @@ class Driver:
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
+                    "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
             except Exception as e:
                 self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
+                    "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
 
-        elif event["mode"] == "multi_user":
+        elif self.settings["MODE"] == "multi_user":
             try:
-                assert "multi_user_csv" in event
+                assert self.settings["MULTI_USER_CSV"] is not None
             except AssertionError as e:
                 self.error(traceback.format_exc())
                 return {
@@ -229,25 +256,62 @@ class Driver:
                     "headers": {"Content-Type": "application/json"},
                     "body": {
                         "error": (
-                            "must provide multi_user_csv in body "
+                            "must provide MULTI_USER_CSV in body "
                             "for multi_user_mode - csv should include "
-                            "username,password,csv_link as columns"
-                        )
+                            "username,password,csv_path as columns"
+                        ),
+                        "ip": self.ip,
                     },
                 }
             try:
-                self.info("Creating automator with mode=multi_user")
-                automator = BizBuySellAutomator(verbose=self.verbose)
+                self.info("Creating automator with MODE=multi_user")
+                automator = BizBuySellAutomator(network_utility=self.net)
                 automator.init_driver()
-                # Download the CSV for multi-user execution
-                # should be formatted as username,password,csv_link where
-                # csv_link is the batch upload file for that user
-                multi_user_csv_path = (
-                    automator.gdrive_client.download_file_from_google_drive(
-                        shared_link=event["multi_user_csv"],
-                        temporary_filename="multi-user-tmp.csv",
+                if self.settings['FILE_SOURCE'] == "google_drive":
+                    # Download the CSV for multi-user execution
+                    # should be formatted as username,password,csv_path where
+                    # csv_path is the batch upload file for that user
+                    multi_user_csv_path = (
+                        automator.gdrive_client.download_file_from_google_drive(
+                            shared_link=self.settings["MULTI_USER_CSV"],
+                            temporary_filename="multi-user-tmp.csv",
+                        )
                     )
-                )
+                elif self.settings['FILE_SOURCE'] == "local":
+                    # use the local FS path to the file; csv_path column should also specify local FS paths
+                    # for each user
+                    multi_user_csv_path = self.settings['MULTI_USER_CSV']
+
+                elif self.settings['FILE_SOURCE'] == "s3":
+                    try:
+                        # required variable is present
+                        assert all(
+                            x is not None for x in [
+                                self.settings['AWS_S3_BUCKET'], 
+                                self.settings['AWS_S3_REGION']
+                                ]
+                        )
+                    except AssertionError as e:
+                        self.error(traceback.format_exc())
+                        return {
+                            "statusCode": 500,
+                            "headers": {"Content-Type": "application/json"},
+                            "body": {
+                                "error": (
+                                    "must provide AWS_S3_REGION and AWS_S3_BUCKET if"
+                                    " FILE_SOURCE=s3"
+                                ),
+                                "ip": self.ip,
+                            },
+                        }
+                    multi_user_csv_path = (
+                        automator.s3_client.download_file_from_s3_bucket(
+                            bucket_name=self.settings['AWS_S3_BUCKET'],
+                            file_key=self.settings['MULTI_USER_CSV'],
+                            temporary_filename="multi-user-tmp.csv",
+                        )
+                    )
+
                 automator.automate_multiple_user_sessions(
                     csv_file_path=multi_user_csv_path
                 )
@@ -255,19 +319,22 @@ class Driver:
                 return {
                     "statusCode": 200,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"success": (f"batch uploads complete for multiple users")},
+                    "body": {
+                        "success": (f"batch uploads complete for multiple users"),
+                        "ip": self.ip,
+                    },
                 }
             except TimeoutException as e:
                 self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
+                    "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
             except Exception as e:
                 self.error(traceback.format_exc())
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc()},
+                    "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }

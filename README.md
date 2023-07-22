@@ -55,7 +55,7 @@ In **single_user mode**, the batch upload automation is only going to be run for
 
 ```
 
-**multi_user mode** is essentially just a wrapper around the single user mode in the form of a loop. In this case, though, there are no creds passed in the payload; there is just a `multi_user_csv` whose value links to a CSV formatted as `username,password,csv_link`. Each record in that "multi user CSV" file should have a username and password to log in to BizBuySell with, and a Google Drive link to a batch upload CSV corresponding to that user.
+**multi_user mode** is essentially just a wrapper around the single user mode in the form of a loop. In this case, though, there are no creds passed in the payload; there is just a `multi_user_csv` whose value links to a CSV formatted as `username,password,csv_path`. Each record in that "multi user CSV" file should have a username and password to log in to BizBuySell with, and a Google Drive link to a batch upload CSV corresponding to that user.
 The following is what ultimately gets executed after `multi_user_csv` gets downloaded to `csv_file_path`:
 
 ```
@@ -67,7 +67,7 @@ def automate_multiple_user_sessions(self, csv_file_path: str = "") -> None:
                 self.automate_single_user_session(
                     username=user_row["username"],
                     password=user_row["password"],
-                    csv_link=user_row["csv_link"],
+                    csv_path=user_row["csv_path"],
                 )
 ```
 
@@ -75,7 +75,7 @@ Moreover, after correspondence with Connor over email about the details of the u
 
 ## File Sources - Important
 
-When running with AWS Lambda, CSV files are not specified as file system paths, but are instead specified with Google Drive links. That is the only option for AWS Lambda execution. Upload the CSV to Google Drive, right click, Share, and use the "Anyone with the link can view" setting. Then, copy the link and provide that as the value for the single/multi_user_csv parameter. If you are using multi user mode, the CSVs referenced for each user in the multi user CSV (where columns are username,password,csv_link) also need to be Google Drive links with the same "Anyone with the link can view" permission. Taking the previous multi_user example:
+When running with AWS Lambda, CSV files are not specified as file system paths, but are instead specified with Google Drive links. That is the only option for AWS Lambda execution. Upload the CSV to Google Drive, right click, Share, and use the "Anyone with the link can view" setting. Then, copy the link and provide that as the value for the single/multi_user_csv parameter. If you are using multi user mode, the CSVs referenced for each user in the multi user CSV (where columns are username,password,csv_path) also need to be Google Drive links with the same "Anyone with the link can view" permission. Taking the previous multi_user example:
 
 ```
 
@@ -90,7 +90,7 @@ When running with AWS Lambda, CSV files are not specified as file system paths, 
 the link specified for multi_user_csv itself has the "Anyone with the link can view" setting. Then, inside that CSV file, we have something like
 
 ```
-username,password,csv_link
+username,password,csv_path
 user1,pass1,https://drive.google.com/file/d/SOME_LONG_FILE_ID1_HERE/view?usp=drive_link
 user2,pass2,https://drive.google.com/file/d/SOME_LONG_FILE_ID2_HERE/view?usp=drive_link
 user3,pass3,https://drive.google.com/file/d/SOME_LONG_FILE_ID3_HERE/view?usp=drive_link
