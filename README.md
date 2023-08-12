@@ -112,6 +112,26 @@ If you are not using AWS Lambda, and you are simply running it locally on your o
 
 All of the parameters outlined above can be passed either in the event payload to the handler functions or can be set as environment variables.
 
+#### FILE_TO_CREDS_JSON_MAP
+
+USE THIS VARIABLE WHEN TRIGGERING WITH S3 NOTIFICATIONS. S3 notifications don't include credentials, so this environment variable defines a map between S3 file keys and their corresponding credentials.
+This should take the following format:
+
+```
+{
+  "fileKey1": {"username": "a", "password": "b"},
+  "fileKey2": {"username": "c", "password": "d"},
+  "fileKey3": {"username": "e", "password": "f"},
+  "fileKey4": {"username": "g", "password": "h"}
+}
+```
+
+and it needs to be flattened into a single string before storing as an environment variable. You can use a tool like [jsonformatter.org](https://jsonformatter.org) to do this; just paste your JSON in the left panel and then click Minify/Compact, and use the result as your environment variable value:
+
+```
+FILE_TO_CREDS_JSON_MAP={"fileKey1":{"username":"a","password":"b"},"fileKey2":{"username":"c","password":"d"},"fileKey3":{"username":"e","password":"f"},"fileKey4":{"username":"g","password":"h"}}
+```
+
 ## Running
 
 ### With AWS Lambda
@@ -257,3 +277,13 @@ You could also change the second part after the colon if you want to change wher
 
 3. Run `./run-local.sh`. You can [view that script](run-local.sh) to see what it is doing in more detail.
 4. As the output of that script indicates, open a separate terminal window and run: `docker logs bizbuysellautomator --follow` to follow the logs of your running container.
+
+## Follow Up - Triggering with S3 Notification Event
+
+Following a meeting with Greg Cory on 8/10/2023, some updates have been made to the project.
+
+The client is bulk uploading files into an S3 bucket, and they're not in a position currently where they can script the upload of those files and immediately invoke an API Gateway call to trigger the Lambda (which would allow them to update an S3 file, then make an HTTP API request with a payload containing the file info and its corresponding credentials). For the time being, they need a way of triggering the lambda whenever a file is updated in S3. This is easy enough to do by setting up notification events on the S3 bucket. The tricky part is, when a file is updated in the bucket, how can you send the creds corresponding to that updated file to the Lambda function? First thought: use metadata on the file. I tried this, but it doesn't work because any time you upload a file, the metadata is empty, and if the file is being updated (i.e. an upload with the same name), any existing metadata is wiped clean. Plus, it's a little slower, because the metadata is not passed in the event, so you still have to read it from the file by using boto3 and the file key. And you have to either script the upload process to maintain /clone existing metadata, or you have to manually go back in and re-enter username and password for each file you upload in the browser. Big headache.
+
+So instead, when using S3 updates as the trigger, we pull the creds from a new environment variable called `FILE_TO_CREDS_JSON_MAP` which looks like `{fileKey: {username: a, password: b}, fileKey2: {username: x, password: y}}`. Now, when the function gets a notification that a file with key `fileKey` was updated, it simply pulls the creds for that file from the environment, and runs with `MODE=single user`. (the assumption with S3 trigger is always single user mode since each individual file update triggers its own lambda execution).
+
+I've added a section to the `lambda_handler` in [main.py](src/main.py) to check if the function is being triggered by an S3 notification event. If it is, it runs a newly added `driver.handle_s3_trigger_single_user_mode(s3_bucket,s3_updated_file_key)` method (in [driver.py](src/driver.py)), where both `s3_bucket` and `s3_updated_file_key` are pulled from the S3 event notification.

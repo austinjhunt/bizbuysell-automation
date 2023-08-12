@@ -1,31 +1,38 @@
 import os
 import requests
-import boto3 
+import boto3
 from log import BaseLogger
 
 
 class S3Client(BaseLogger):
     """Client for reading files from AWS S3"""
 
-    def __init__(self,  settings: dict = {}):
-        """ 
-        Args: 
-        settings (dict) - settings parsed from a combination of a lambda event and 
-        the environment variables (with priority given to lambda event in cases where 
-        vars are defined in both places) 
+    def __init__(self, settings: dict = {}):
         """
-        super().__init__(name="S3Client", settings=settings) 
-        if self.settings['ENV'] == 'local':
+        Args:
+        settings (dict) - settings parsed from a combination of a lambda event and
+        the environment variables (with priority given to lambda event in cases where
+        vars are defined in both places)
+        """
+        super().__init__(name="S3Client", settings=settings)
+        if self.settings["ENV"] == "local":
             # permissions come from passed credentials
             self.s3 = boto3.client(
-                "s3", 
-                region_name=self.settings['AWS_S3_REGION'],
-                aws_access_key_id=self.settings['AWS_ACCESS_KEY_ID'],
-                aws_secret_access_key=self.settings['AWS_SECRET_ACCESS_KEY']
-                )
-        elif self.settings['ENV'] == 'lambda': 
+                "s3",
+                region_name=self.settings["AWS_S3_REGION"],
+                aws_access_key_id=self.settings["AWS_ACCESS_KEY_ID"],
+                aws_secret_access_key=self.settings["AWS_SECRET_ACCESS_KEY"],
+            )
+        elif self.settings["ENV"] == "lambda":
             # permissions come from execution role
-            self.s3 = boto3.client("s3", region_name=self.settings['AWS_S3_REGION'])
+            self.s3 = boto3.client("s3", region_name=self.settings["AWS_S3_REGION"])
+
+    def get_file_metadata(self, bucket_name: str = "", file_key: str = ""):
+        """Return an S3 file's metadata given its parent bucket and its key (location in the bucket)"""
+        res = self.s3.head_object(Bucket=bucket_name, Key=file_key)
+        if "Metadata" in res:
+            return res["Metadata"]
+        return None
 
     def get_all_files_from_s3_bucket(self, bucket_name: str = ""):
         """
@@ -84,7 +91,7 @@ class S3Client(BaseLogger):
         )
         if not temporary_filename:
             temporary_filename = "tmp.csv"
-        destination = os.path.join(self.settings['TEMP_FOLDER'], temporary_filename)
+        destination = os.path.join(self.settings["TEMP_FOLDER"], temporary_filename)
         self.s3.download_file(Bucket=bucket_name, Key=file_key, Filename=destination)
         return destination
 
@@ -95,11 +102,11 @@ class GoogleDriveClient(BaseLogger):
     """
 
     def __init__(self, settings: dict = {}):
-        """ 
-        Args: 
-        settings (dict) - settings parsed from a combination of a lambda event and 
-        the environment variables (with priority given to lambda event in cases where 
-        vars are defined in both places) 
+        """
+        Args:
+        settings (dict) - settings parsed from a combination of a lambda event and
+        the environment variables (with priority given to lambda event in cases where
+        vars are defined in both places)
         """
         super().__init__(name="S3Client", settings=settings)
 
@@ -128,7 +135,7 @@ class GoogleDriveClient(BaseLogger):
         )
         if not temporary_filename:
             temporary_filename = "tmp.csv"
-        destination = os.path.join(self.settings['TEMP_FOLDER'], temporary_filename)
+        destination = os.path.join(self.settings["TEMP_FOLDER"], temporary_filename)
         session = requests.Session()
         id = self.get_google_drive_file_id_from_shared_link(shared_link=shared_link)
         url = f"https://docs.google.com/uc?id={id}&confirm=1&export=download"
@@ -143,7 +150,7 @@ class GoogleDriveClient(BaseLogger):
         args:
         response (requests.Response) - file download response
         destination (str) - path to local file to which content should be written"""
-        CHUNK_SIZE = 32768 
+        CHUNK_SIZE = 32768
         with open(destination, "wb") as f:
             for chunk in response.iter_content(CHUNK_SIZE):
                 if chunk:  # filter out keep-alive new chunks

@@ -1,4 +1,4 @@
 .env
 venv
 files
-chrome-dev
+src/chrome-dev
