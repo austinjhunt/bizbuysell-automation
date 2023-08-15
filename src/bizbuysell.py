@@ -1,6 +1,7 @@
 import os
 import csv
 import logging
+import traceback
 from time import sleep
 from selenium import webdriver
 from tempfile import mkdtemp
@@ -9,10 +10,11 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC 
+from selenium.webdriver.support import expected_conditions as EC
 from clients import GoogleDriveClient, S3Client
-from log import BaseLogger 
+from log import BaseLogger
 from net import NetworkUtility
+
 
 class all_elements_satisfy(object):
     """
@@ -30,37 +32,41 @@ class all_elements_satisfy(object):
 
 
 class BizBuySellAutomator(BaseLogger):
-    def __init__(self, network_utility: NetworkUtility = None, settings: dict = {} ):
+    def __init__(self, network_utility: NetworkUtility = None, settings: dict = {}):
         """
-        Initialize the automator to automate a BizBuySell.com upload session 
-        Args: 
-        network_utility (NetworkUtility) - instance of NetworkUtility passed from the 
+        Initialize the automator to automate a BizBuySell.com upload session
+        Args:
+        network_utility (NetworkUtility) - instance of NetworkUtility passed from the
         driver for the purpose of reusing it across all instances of BizBuySellAutomator
 
-        settings (dict) - settings parsed from a combination of a lambda event and 
-        the environment variables (with priority given to lambda event in cases where 
+        settings (dict) - settings parsed from a combination of a lambda event and
+        the environment variables (with priority given to lambda event in cases where
         vars are defined in both places)
-        """ 
+        """
         super().__init__(name="BizBuySellAutomator", settings=settings)
-        self.net = network_utility  
-        if self.settings['FILE_SOURCE'] == "google_drive":
-            self.gdrive_client = GoogleDriveClient(settings=self.settings) 
-        elif self.settings['FILE_SOURCE'] == "s3":
+        self.net = network_utility
+        if self.settings["FILE_SOURCE"] == "google_drive":
+            self.gdrive_client = GoogleDriveClient(settings=self.settings)
+        elif self.settings["FILE_SOURCE"] == "s3":
             try:
                 # required variable is present
-                assert all(x is not None for x in [
-                    self.settings['AWS_S3_BUCKET'], self.settings['AWS_S3_REGION']
-                ])
+                assert all(
+                    x is not None
+                    for x in [
+                        self.settings["AWS_S3_BUCKET"],
+                        self.settings["AWS_S3_REGION"],
+                    ]
+                )
             except AssertionError as e:
-                self.error(traceback.format_exc()) 
+                self.error(traceback.format_exc())
             self.s3_client = S3Client(settings=self.settings)
 
     def init_driver(self) -> None:
         """set self.driver to a Chrome driver using Selenium"""
         self.info("Creating Chrome driver")
         # Set up the ChromeDriver with the executable file paths
-        chrome_binary_path = self.settings['CHROME_PATH']
-        webdriver_path = self.settings['CHROME_DRIVER_PATH']
+        chrome_binary_path = self.settings["CHROME_PATH"]
+        webdriver_path = self.settings["CHROME_DRIVER_PATH"]
         self.debug(f"Chrome Binary Path: {chrome_binary_path}")
         self.debug(f"Chrome Driver Path: {webdriver_path}")
         options = webdriver.ChromeOptions()
@@ -79,21 +85,20 @@ class BizBuySellAutomator(BaseLogger):
         options.add_argument("--remote-debugging-port=9222")
 
         # Was getting Access Denied response. Add user agent to resolve.
-        user_agent = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-        )
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
         options.add_argument(f"--user-agent={user_agent}")
         options.add_argument(
             "--lang=en-US,en;q=0.9"
         )  # Example: English (United States) and English with lower priority
 
-
-        if self.settings['PRODUCTION']:
-            for prod_arg in ['--headless', '--single-process']: # comment out the proxy temporarily #, f'--proxy-server={TOR_PROXIES["https"]}']:
-                self.debug(f'Adding production arg {prod_arg} to Chrome driver')
+        if self.settings["PRODUCTION"]:
+            for prod_arg in [
+                "--headless",
+                "--single-process",
+            ]:  # comment out the proxy temporarily #, f'--proxy-server={TOR_PROXIES["https"]}']:
+                self.debug(f"Adding production arg {prod_arg} to Chrome driver")
                 options.add_argument(prod_arg)
 
-         
         # Initialize ChromeDriver instance
         self.driver = webdriver.Chrome(
             service=Service(executable_path=webdriver_path), options=options
@@ -145,7 +150,7 @@ class BizBuySellAutomator(BaseLogger):
         login_url = "https://www.bizbuysell.com/users/login.aspx"
         self.driver.get(url=login_url)
         self.debug(f"Waiting for login form fields and button")
-        WebDriverWait(self.driver, self.settings['WEBDRIVER_TIMEOUT_SECONDS']).until(
+        WebDriverWait(self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]).until(
             EC.presence_of_all_elements_located((By.TAG_NAME, "input"))
         )
 
@@ -170,9 +175,9 @@ class BizBuySellAutomator(BaseLogger):
         Returns: None
         """
         self.debug("Waiting for login completion (for dashboard to display)")
-        dashboard_element = WebDriverWait(self.driver, self.settings['WEBDRIVER_TIMEOUT_SECONDS']).until(
-            EC.presence_of_element_located((By.ID, "brokerHdrDashboard"))
-        )
+        dashboard_element = WebDriverWait(
+            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
+        ).until(EC.presence_of_element_located((By.ID, "brokerHdrDashboard")))
         self.debug("Now logged in!")
 
     def automate_upload(self, csv_file_path: str = "") -> None:
@@ -196,29 +201,29 @@ class BizBuySellAutomator(BaseLogger):
         file_input_id = "ctl00_ContentPlaceHolder1_AsyncFileUploadBulkCSV_ctl02"
         choose_file_button_class = "chooseFileButton"
         upload_button_id = "ctl00_ContentPlaceHolder1_btnUploadDocument"
-        file_input = WebDriverWait(self.driver, self.settings['WEBDRIVER_TIMEOUT_SECONDS']).until(
-            EC.presence_of_element_located((By.ID, file_input_id))
-        )
+        file_input = WebDriverWait(
+            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
+        ).until(EC.presence_of_element_located((By.ID, file_input_id)))
         self.debug(f"Sending CSV file path {csv_file_path} into input field")
         file_input.send_keys(csv_file_path)
         sleep(2)
         self.debug("Enabling and clicking Upload File button")
         self.driver.execute_script(f"AsyncFileUpload_ClientUploadComplete();")
         sleep(2)
-        upload_button = WebDriverWait(self.driver, self.settings['WEBDRIVER_TIMEOUT_SECONDS']).until(
-            EC.element_to_be_clickable((By.ID, upload_button_id))
-        )
+        upload_button = WebDriverWait(
+            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
+        ).until(EC.element_to_be_clickable((By.ID, upload_button_id)))
         upload_button.click()
         self.debug("Waiting for batchimport.aspx page to load")
-        WebDriverWait(self.driver, self.settings['WEBDRIVER_UPLOAD_TIMEOUT_SECONDS']).until(
-            EC.url_contains("batchimport.aspx")
-        )
+        WebDriverWait(
+            self.driver, self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"]
+        ).until(EC.url_contains("batchimport.aspx"))
 
         # This brings you to a "Please confirm new listings to import
         # and existing listings to update." page. Assuming updateAll is the course of action.
         # Timeout should be extended a bit for file uploads
         update_all_button = WebDriverWait(
-            self.driver, self.settings['WEBDRIVER_UPLOAD_TIMEOUT_SECONDS']
+            self.driver, self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"]
         ).until(EC.presence_of_element_located((By.ID, "updateAll")))
         self.info("Clicking Update All button")
         update_all_button.click()
@@ -262,7 +267,7 @@ class BizBuySellAutomator(BaseLogger):
             if len(dropdowns) >= 2:
                 business_type_dropdown = dropdowns[1]
                 dropdown_toggle = WebDriverWait(
-                    self.driver, timeout=self.settings['WEBDRIVER_TIMEOUT_SECONDS']
+                    self.driver, timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
                 ).until(
                     EC.element_to_be_clickable(
                         business_type_dropdown.find_element(
@@ -277,7 +282,9 @@ class BizBuySellAutomator(BaseLogger):
                 business_type_dropdown_menu = business_type_dropdown.find_element(
                     by=By.CSS_SELECTOR, value="ul.dropdown-menu"
                 )
-                WebDriverWait(self.driver, self.settings['WEBDRIVER_TIMEOUT_SECONDS']).until(
+                WebDriverWait(
+                    self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
+                ).until(
                     EC.element_to_be_clickable(
                         business_type_dropdown_menu.find_element(
                             by=By.XPATH,
@@ -295,7 +302,9 @@ class BizBuySellAutomator(BaseLogger):
         in their status column.
         """
         self.info("Waiting for completion of Import Listings operation")
-        wait = WebDriverWait(self.driver, self.settings['WEBDRIVER_UPLOAD_TIMEOUT_SECONDS'])
+        wait = WebDriverWait(
+            self.driver, self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"]
+        )
         wait.until(
             all_elements_satisfy(
                 locator=(
@@ -314,7 +323,9 @@ class BizBuySellAutomator(BaseLogger):
         in their status column.
         """
         self.info("Waiting for completion of Update Listings operation")
-        wait = WebDriverWait(self.driver, self.settings['WEBDRIVER_UPLOAD_TIMEOUT_SECONDS'])
+        wait = WebDriverWait(
+            self.driver, self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"]
+        )
         wait.until(
             all_elements_satisfy(
                 locator=(
@@ -367,20 +378,20 @@ class BizBuySellAutomator(BaseLogger):
 
         self.login(username=username, password=password)
 
-        if self.settings['FILE_SOURCE'] == "google_drive":
+        if self.settings["FILE_SOURCE"] == "google_drive":
             # file not already on file system
             # Download the CSV for this user with the URL from the Lambda environment
             csv_file_path = self.gdrive_client.download_file_from_google_drive(
                 shared_link=csv_path
             )
-        elif self.settings['FILE_SOURCE'] == "local":
+        elif self.settings["FILE_SOURCE"] == "local":
             # Already stored locally. Ensure path exists before using.
             self.debug(f"Asserting path existence before continuing: {csv_path}")
             assert os.path.exists(csv_path)
             csv_file_path = csv_path
-        elif self.settings['FILE_SOURCE'] == "s3":
+        elif self.settings["FILE_SOURCE"] == "s3":
             csv_file_path = self.s3_client.download_file_from_s3_bucket(
-                bucket_name=self.settings['AWS_S3_BUCKET'],
+                bucket_name=self.settings["AWS_S3_BUCKET"],
                 file_key=csv_path,
                 temporary_filename="s3tmpfile.csv",
             )
@@ -390,7 +401,7 @@ class BizBuySellAutomator(BaseLogger):
         self.automate_upload(csv_file_path=csv_file_path)
 
         # IF the file was downloaded from cloud, remove the temporary downloaded file
-        if self.settings['FILE_SOURCE'] in ("google_drive", "s3"):
+        if self.settings["FILE_SOURCE"] in ("google_drive", "s3"):
             os.remove(csv_file_path)
 
         self.logout()
@@ -404,23 +415,26 @@ class BizBuySellAutomator(BaseLogger):
                     username=user_row["username"],
                     password=user_row["password"],
                     csv_path=user_row["csv_path"],
-                ) 
+                )
+
     def logout(self) -> None:
         """Log user out of web app"""
         # Get the sign out button from the collapsible
         # menu in the navigation with a CSS selector
         chain = ActionChains(self.driver, duration=2000)
         topright_dropdown_button = WebDriverWait(
-            self.driver, self.settings['WEBDRIVER_TIMEOUT_SECONDS']
+            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
         ).until(EC.element_to_be_clickable((By.ID, "dropMyBBS")))
         topright_dropdown_button.click()
-        signout_button = WebDriverWait(self.driver, self.settings['WEBDRIVER_TIMEOUT_SECONDS']).until(
+        signout_button = WebDriverWait(
+            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
+        ).until(
             EC.element_to_be_clickable(
                 (By.CSS_SELECTOR, "li#topNav_MyBBS ul.dropdown-menu li:last-child a")
             )
         )
         signout_button.click()
-        WebDriverWait(self.driver, self.settings['WEBDRIVER_TIMEOUT_SECONDS']).until(
+        WebDriverWait(self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]).until(
             EC.presence_of_element_located((By.ID, "hlSignIn"))
         )
         self.info("Logged out! Sign in button is present.")
