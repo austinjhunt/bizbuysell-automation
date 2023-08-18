@@ -33,17 +33,10 @@ def get_settings(event: dict = {}):
             "FILE_SOURCE",
             "AWS_ACCESS_KEY_ID",
             "AWS_SECRET_ACCESS_KEY",
-            "FILE_TO_CREDS_JSON_MAP",
+            "CREDENTIALS_FILE",
         ]
     }
-    try:
-        print("parsing JSON environment variable FILE_TO_CREDS_JSON_MAP")
-        settings["FILE_TO_CREDS_JSON_MAP"] = json.loads(
-            settings["FILE_TO_CREDS_JSON_MAP"]
-        )
-    except Exception as e:
-        print("Error when parsing JSON environment variable FILE_TO_CREDS_JSON_MAP")
-        print(e)
+
     # now handle the ints
     settings = settings | {
         "WEBDRIVER_TIMEOUT_SECONDS": int(

@@ -1,5 +1,6 @@
 import logging
 import os
+import csv
 import traceback
 import subprocess
 import time
@@ -350,10 +351,9 @@ class Driver(BaseLogger):
     ):
         """Run automation with MODE=single_user for user corresponding to the
         updated file in S3 that triggered execution.
-        - the key of the updated file should be a key in the "FILE_TO_CREDS_JSON_MAP" environment variable
-        with a value that looks like {username: xyz, password: abc} containing creds corredsponding to the file
+        - pull creds for the updated file key from the CREDENTIALS_FILE (csv)
         - the lambda runs the single user mode execution with the S3 file as the CSV,
-        and the username and password from FILE_TO_CREDS_JSON_MAP as the creds
+        and the username and password from CREDENTIALS_FILE as the creds
         Args:
         s3_bucket (str) - name of bucket where file was updated
         s3_updated_file_key (str) - key (location or path) of file updated
@@ -366,12 +366,10 @@ class Driver(BaseLogger):
                 network_utility=self.net, settings=self.settings
             )
             automator.init_driver()
-            self.info(
-                f"Extracting file creds from environment variable FILE_TO_CREDS_JSON_MAP"
+            creds_for_file = automator.get_creds_for_csv_file(
+                csv_file_path=s3_updated_file_key
             )
-            creds_for_file = self.settings["FILE_TO_CREDS_JSON_MAP"][
-                s3_updated_file_key
-            ]
+            assert creds_for_file is not None
             self.info(f'Automating user session for user {creds_for_file["username"]}')
             automator.automate_single_user_session(
                 username=creds_for_file["username"],

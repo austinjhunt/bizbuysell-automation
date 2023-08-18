@@ -357,6 +357,38 @@ class BizBuySellAutomator(BaseLogger):
         self.debug(f"Converted {shared_link} to downloadable link {downloadable_link}")
         return downloadable_link
 
+    def get_creds_for_csv_file(self, csv_file_path: str):
+        """
+        Pull the credentials for the provided file path
+        Arguments:
+        csv_file_path (str) - could be a local file path, an S3 file key, or a Google file link
+        Returns:
+        creds (dict) - {"username": <username>, "password": <password>}
+        """
+        self.info(
+            f"Pulling credentials for {csv_file_path} from {self.settings['CREDENTIALS_FILE']}"
+        )
+        creds_file_path = self.s3_client.download_file_from_s3_bucket(
+            bucket_name=self.settings["AWS_S3_BUCKET"],
+            file_key=self.settings["CREDENTIALS_FILE"],
+            temporary_filename="s3tmpcredsfile.csv",
+        )
+
+        with open(creds_file_path, "r") as f:
+            reader = csv.DictReader(f)
+            data = {}
+            for line in reader:
+                filename = line["File Name"].strip()
+                # csv_file_path could have a prefix if inside folder
+                # so don't use ==
+                if filename in csv_file_path:
+                    username = line["Email"]
+                    password = line["Password"]
+                    self.info(f'Credentials found! Username={line["Email"][:4]}***')
+                    return {"username": line["Email"], "password": line["Password"]}
+        self.error("Credentials not found")
+        return None
+
     def automate_single_user_session(
         self,
         username: str,
