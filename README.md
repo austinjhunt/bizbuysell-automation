@@ -121,7 +121,7 @@ Office,Agent,Email,Password,File Name,,,
 Austin, FirstName LastName, someusername@somedomain.com, userPassword, filename.csv,,,
 ```
 
-This format is based on an initial file that was provided during initial setup of S3 event notifications. Any change to this format (particularly changes to the Email or Password column headings) will break the extraction of credentials needed for the Lambda to work.
+This format is based on an initial file that was provided during initial setup of S3 event notifications. Any change to this format (particularly changes to the Email, Password, or File Name column headings) will break the extraction of credentials needed for the Lambda to work.
 
 ## Running
 
@@ -286,6 +286,6 @@ I've added a section to the `lambda_handler` in [main.py](src/main.py) to check 
 3. Client will use a bucket `wsr-integrations`. All file uploads (individual files, not zipped) will go into a `bbs` folder inside of the `wsr-integrations` bucket.
 4. An event notification `bbs-upload-event` is configured to notify the `bizbuysell` Lambda function of **all object create events** (new uploads and overwrites of existing files) for files with prefix `bbs` (i.e., inside `bbs` folder).
 5. These event notifications happen for **each individual file**, even if uploading many at once. Each event notification carries the key of the updated file (e.g., `bbs/WSR Clermont.csv`). The Lambda function, when triggered by this notification, uses that file key to first obtain creds for it, download it from S3, and upload it to BBS.
-6. **Reading creds:** The Lambda reads the `CREDENTIALS_FILE` specified as an environment variable from the root of the same S3 bucket `wsr-integrations` and pulls the creds corresponding to the file with the file key from the trigger event. NOTE: **This CREDENTIALS_FILE is stored in the root of the same bucket** `wsr-integrations`, not in the `bbs` folder. This is because updates to this credentials file should not trigger the Lambda function. If the credentials file does not contain creds for a given file that triggers the Lambda, an error will be returned.
+6. **Reading creds:** The Lambda reads the `CREDENTIALS_FILE` specified as an environment variable from the root of the same S3 bucket `wsr-integrations` and pulls the creds corresponding to the file with the file key from the trigger event. (Specifically, it pulls the Email and Password where the File Name matches the trigger event file key). NOTE: **This CREDENTIALS_FILE is stored in the root of the same bucket** `wsr-integrations`, not in the `bbs` folder. This is because updates to this credentials file should not trigger the Lambda function. If the credentials file does not contain creds for a given file that triggers the Lambda, an error will be returned.
 7. The Lambda downloads the file using the key from the S3 trigger event.
 8. The Lambda uses the credentials from `CREDENTIALS_FILE` to automate the upload of the downloaded file to bizbuysell.com.
