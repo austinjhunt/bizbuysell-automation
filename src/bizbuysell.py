@@ -384,7 +384,7 @@ class BizBuySellAutomator(BaseLogger):
                 if filename in csv_file_path:
                     username = line["Email"]
                     password = line["Password"]
-                    self.info(f'Credentials found! Username={line["Email"][:4]}***')
+                    self.info(f"Credentials found!")
                     return {"username": line["Email"], "password": line["Password"]}
         self.error("Credentials not found")
         return None
