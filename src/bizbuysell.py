@@ -6,7 +6,10 @@ from time import sleep
 from selenium import webdriver
 from tempfile import mkdtemp
 from selenium.webdriver.chrome.service import Service
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    UnexpectedAlertPresentException,
+)
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
@@ -104,6 +107,24 @@ class BizBuySellAutomator(BaseLogger):
             service=Service(executable_path=webdriver_path), options=options
         )
 
+    def wait_and_retry(self, callback, timeout):
+        """
+        Helper method to retry a callback n times (n from environment MAX_TRIES)
+        Arguments:
+        callback (function) - function to retry
+        Returns:
+        None
+        """
+        max_tries = int(os.environ.get("MAX_TRIES", 3))
+        for i in range(max_tries):
+            self.debug(f"Attempt {i+1} of {max_tries} for WebDriverWait")
+            try:
+                return callback(WebDriverWait(self.driver, timeout))
+                break
+            except TimeoutException as e:
+                if i == int(os.environ.get("MAX_TRIES", max_tries)) - 1:
+                    raise e
+
     def login(self, username: str = "", password: str = "") -> None:
         """Log a user into the web app given username and password
 
@@ -148,12 +169,19 @@ class BizBuySellAutomator(BaseLogger):
         None
         """
         login_url = "https://www.bizbuysell.com/users/login.aspx"
-        self.driver.get(url=login_url)
-        self.debug(f"Waiting for login form fields and button")
-        WebDriverWait(self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]).until(
-            EC.presence_of_all_elements_located((By.TAG_NAME, "input"))
-        )
 
+        def wait_for_login_page_elements_callback(wait):
+            wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
+
+        try:
+            self.debug("wait_and_retry for login page elements")
+            self.wait_and_retry(
+                callback=wait_for_login_page_elements_callback,
+                timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
         # Have to use JS to populate "placeholder" input field, then trigger an input event
         # to get the real input fields to populate before clicking button
         self.driver.execute_script(
@@ -165,19 +193,21 @@ class BizBuySellAutomator(BaseLogger):
             f'document.getElementById("ctl00_ctl00_Content_ContentPlaceHolder1_LoginControl_BtnLogin").click();'
         )
 
-        self._wait_for_login_completion()
-
-    def _wait_for_login_completion(self) -> None:
-        """
-        Helper method to wait for the login process to
-        complete; it is complete once a certain element shows up on the dashboard
-        Arguments: None
-        Returns: None
-        """
         self.debug("Waiting for login completion (for dashboard to display)")
-        dashboard_element = WebDriverWait(
-            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
-        ).until(EC.presence_of_element_located((By.ID, "brokerHdrDashboard")))
+
+        def wait_for_dashboard_element_callback(wait):
+            wait.until(EC.presence_of_element_located((By.ID, "brokerHdrDashboard")))
+
+        try:
+            self.debug("wait_and_retry for #brokerHdrDashboard element")
+            self.wait_and_retry(
+                callback=wait_for_dashboard_element_callback,
+                timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
+
         self.debug("Now logged in!")
 
     def automate_upload(self, csv_file_path: str = "") -> None:
@@ -201,30 +231,71 @@ class BizBuySellAutomator(BaseLogger):
         file_input_id = "ctl00_ContentPlaceHolder1_AsyncFileUploadBulkCSV_ctl02"
         choose_file_button_class = "chooseFileButton"
         upload_button_id = "ctl00_ContentPlaceHolder1_btnUploadDocument"
-        file_input = WebDriverWait(
-            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
-        ).until(EC.presence_of_element_located((By.ID, file_input_id)))
+
+        def wait_for_file_input_callback(wait):
+            return wait.until(EC.presence_of_element_located((By.ID, file_input_id)))
+
+        try:
+            self.debug("wait_and_retry for file input field")
+            file_input = self.wait_and_retry(
+                callback=wait_for_file_input_callback,
+                timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
         self.debug(f"Sending CSV file path {csv_file_path} into input field")
         file_input.send_keys(csv_file_path)
-        sleep(2)
+        sleep(6)
         self.debug("Enabling and clicking Upload File button")
         self.driver.execute_script(f"AsyncFileUpload_ClientUploadComplete();")
-        sleep(2)
-        upload_button = WebDriverWait(
-            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
-        ).until(EC.element_to_be_clickable((By.ID, upload_button_id)))
+        sleep(6)
+
+        def wait_for_upload_button_callback(wait):
+            return wait.until(EC.element_to_be_clickable((By.ID, upload_button_id)))
+
+        try:
+            self.debug("wait_and_retry for upload button")
+            upload_button = self.wait_and_retry(
+                callback=wait_for_upload_button_callback,
+                timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
+
         upload_button.click()
-        self.debug("Waiting for batchimport.aspx page to load")
-        WebDriverWait(
-            self.driver, self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"]
-        ).until(EC.url_contains("batchimport.aspx"))
+
+        def wait_for_batchimport_page_callback(wait):
+            wait.until(EC.url_contains("batchimport.aspx"))
+
+        try:
+            self.debug("wait_and_retry for batchimport.aspx page to load")
+            self.wait_and_retry(
+                callback=wait_for_batchimport_page_callback,
+                timeout=self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
 
         # This brings you to a "Please confirm new listings to import
         # and existing listings to update." page. Assuming updateAll is the course of action.
         # Timeout should be extended a bit for file uploads
-        update_all_button = WebDriverWait(
-            self.driver, self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"]
-        ).until(EC.presence_of_element_located((By.ID, "updateAll")))
+
+        def wait_for_upload_all_button_callback(wait):
+            return wait.until(EC.element_to_be_clickable((By.ID, "updateAll")))
+
+        try:
+            self.debug("wait_and_retry for Update All button")
+            update_all_button = self.wait_and_retry(
+                callback=wait_for_upload_all_button_callback,
+                timeout=self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
+
         self.info("Clicking Update All button")
         update_all_button.click()
 
@@ -240,6 +311,8 @@ class BizBuySellAutomator(BaseLogger):
             self._wait_for_import_all_completion()
         except NoSuchElementException as e:
             pass
+        except TimeoutException as e2:
+            raise e2
 
     def _prepare_all_new_imports(self) -> None:
         """Before clicking Import All, the new records need to
@@ -266,32 +339,59 @@ class BizBuySellAutomator(BaseLogger):
             )
             if len(dropdowns) >= 2:
                 business_type_dropdown = dropdowns[1]
-                dropdown_toggle = WebDriverWait(
-                    self.driver, timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
-                ).until(
-                    EC.element_to_be_clickable(
-                        business_type_dropdown.find_element(
-                            by=By.CSS_SELECTOR,
-                            value="a.current.btn.btn-secondary.dropdown-toggle",
+
+                def wait_for_dropdown_toggle_callback(wait):
+                    return wait.until(
+                        EC.element_to_be_clickable(
+                            business_type_dropdown.find_element(
+                                by=By.CSS_SELECTOR,
+                                value="a.current.btn.btn-secondary.dropdown-toggle",
+                            )
                         )
                     )
-                )
+
+                try:
+                    self.debug("wait_and_retry for dropdown toggle")
+                    dropdown_toggle = self.wait_and_retry(
+                        callback=wait_for_dropdown_toggle_callback,
+                        timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
+                    )
+                except TimeoutException as e:
+                    self.error(traceback.format_exc())
+                    raise e
+
+                self.debug("Clicking dropdown toggle")
                 dropdown_toggle.click()
 
                 # now choose the option containing text Miscellaneous Restaurant and Bar
                 business_type_dropdown_menu = business_type_dropdown.find_element(
                     by=By.CSS_SELECTOR, value="ul.dropdown-menu"
                 )
-                WebDriverWait(
-                    self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
-                ).until(
-                    EC.element_to_be_clickable(
-                        business_type_dropdown_menu.find_element(
-                            by=By.XPATH,
-                            value='li/a[contains(text(), "Miscellaneous Restaurant and Bar")]',
+
+                def wait_for_business_type_dropdown_menu_callback(wait):
+                    return wait.until(
+                        EC.element_to_be_clickable(
+                            business_type_dropdown_menu.find_element(
+                                by=By.XPATH,
+                                value='li/a[contains(text(), "Miscellaneous Restaurant and Bar")]',
+                            )
                         )
                     )
-                ).click()
+
+                try:
+                    self.debug(
+                        "wait_and_retry for Miscellaneous Restaurant and Bar link"
+                    )
+                    miscellaneous_restaurant_bar_link = self.wait_and_retry(
+                        callback=wait_for_business_type_dropdown_menu_callback,
+                        timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
+                    )
+                except TimeoutException as e:
+                    self.error(traceback.format_exc())
+                    raise e
+
+                self.debug("Clicking Miscellaneous Restaurant and Bar link")
+                miscellaneous_restaurant_bar_link.click()
 
         self.info("All imports are prepared with default business type")
 
@@ -302,18 +402,28 @@ class BizBuySellAutomator(BaseLogger):
         in their status column.
         """
         self.info("Waiting for completion of Import Listings operation")
-        wait = WebDriverWait(
-            self.driver, self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"]
-        )
-        wait.until(
-            all_elements_satisfy(
-                locator=(
-                    By.CSS_SELECTOR,
-                    "#batchListingImports div.batchRow div.row.importItem div.col-sm-3",
-                ),
-                condition=lambda element: "complete" in element.text,
+
+        def wait_for_import_all_completion_callback(wait):
+            wait.until(
+                all_elements_satisfy(
+                    locator=(
+                        By.CSS_SELECTOR,
+                        "#batchListingImports div.batchRow div.row.importItem div.col-sm-3",
+                    ),
+                    condition=lambda element: "complete" in element.text,
+                )
             )
-        )
+
+        try:
+            self.debug("wait_and_retry for all imports to complete")
+            self.wait_and_retry(
+                callback=wait_for_import_all_completion_callback,
+                timeout=self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
+
         self.info("Import All operation complete!")
 
     def _wait_for_update_all_completion(self) -> None:
@@ -323,18 +433,28 @@ class BizBuySellAutomator(BaseLogger):
         in their status column.
         """
         self.info("Waiting for completion of Update Listings operation")
-        wait = WebDriverWait(
-            self.driver, self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"]
-        )
-        wait.until(
-            all_elements_satisfy(
-                locator=(
-                    By.CSS_SELECTOR,
-                    "#batchListingUpdates div.updateRow div.row.updateItem div.col-sm-3",
-                ),
-                condition=lambda element: "complete" in element.text,
+
+        def wait_for_update_all_completion_callback(wait):
+            wait.until(
+                all_elements_satisfy(
+                    locator=(
+                        By.CSS_SELECTOR,
+                        "#batchListingUpdates div.updateRow div.row.updateItem div.col-sm-3",
+                    ),
+                    condition=lambda element: "complete" in element.text,
+                )
             )
-        )
+
+        try:
+            self.debug("wait_and_retry for all updates to complete")
+            self.wait_and_retry(
+                callback=wait_for_update_all_completion_callback,
+                timeout=self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
+
         self.info("Update All operation complete!")
 
     def _convert_shared_google_drive_link_to_downloadable_link(
@@ -454,21 +574,69 @@ class BizBuySellAutomator(BaseLogger):
         # Get the sign out button from the collapsible
         # menu in the navigation with a CSS selector
         chain = ActionChains(self.driver, duration=2000)
-        topright_dropdown_button = WebDriverWait(
-            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
-        ).until(EC.element_to_be_clickable((By.ID, "dropMyBBS")))
-        topright_dropdown_button.click()
-        signout_button = WebDriverWait(
-            self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
-        ).until(
-            EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, "li#topNav_MyBBS ul.dropdown-menu li:last-child a")
+        self.info("Logging out")
+
+        def wait_for_topright_dropdown_button_callback(wait):
+            return wait.until(EC.element_to_be_clickable((By.ID, "dropMyBBS")))
+
+        try:
+            self.debug("wait_and_retry for topright dropdown button")
+            topright_dropdown_button = self.wait_and_retry(
+                callback=wait_for_topright_dropdown_button_callback,
+                timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
             )
-        )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
+
+        self.info("Clicking top right dropdown button")
+        topright_dropdown_button.click()
+
+        def wait_for_signout_button_callback(wait):
+            return wait.until(
+                EC.element_to_be_clickable(
+                    (
+                        By.CSS_SELECTOR,
+                        "li#topNav_MyBBS ul.dropdown-menu li:last-child a",
+                    )
+                )
+            )
+
+        try:
+            self.debug("wait_and_retry for signout button")
+            signout_button = self.wait_and_retry(
+                callback=wait_for_signout_button_callback,
+                timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
+
+        self.debug("Clicking signout button")
         signout_button.click()
-        WebDriverWait(self.driver, self.settings["WEBDRIVER_TIMEOUT_SECONDS"]).until(
-            EC.presence_of_element_located((By.ID, "hlSignIn"))
-        )
+
+        def wait_for_signin_button_callback(wait):
+            return wait.until(
+                EC.element_to_be_clickable(
+                    (
+                        By.ID,
+                        "hlSignIn",
+                    )
+                )
+            )
+
+        try:
+            self.debug(
+                "wait_and_retry for signin button to appear (indicates logout sucess)"
+            )
+            self.wait_and_retry(
+                callback=wait_for_signin_button_callback,
+                timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
+            )
+        except TimeoutException as e:
+            self.error(traceback.format_exc())
+            raise e
+
         self.info("Logged out! Sign in button is present.")
 
     def quit(self) -> None:
