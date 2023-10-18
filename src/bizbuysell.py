@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import (
     NoSuchElementException,
     UnexpectedAlertPresentException,
+    TimeoutException,
 )
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
