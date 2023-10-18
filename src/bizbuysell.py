@@ -172,9 +172,7 @@ class BizBuySellAutomator(BaseLogger):
 
         def wait_for_login_page_elements_callback(wait):
             login_url = "https://www.bizbuysell.com/users/login.aspx"
-            self.driver.get(
-                login_url, timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"]
-            )
+            self.driver.get(url=login_url)
             wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
 
         try:
