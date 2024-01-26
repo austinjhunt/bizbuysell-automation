@@ -83,7 +83,7 @@ class BizBuySellAutomator(BaseLogger):
                         "method": "__init__",
                         "message": "Missing required AWS S3 environment variables",
                         "file_key": self.s3_updated_file_key,
-                        "error": e,
+                        "error": str(e),
                     }
                 )
             self.s3_client = S3Client(
@@ -253,7 +253,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "login",
                     "message": "timeout exception waiting for login page",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -297,7 +297,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "login",
                     "message": "timeout exception when logging in",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -372,7 +372,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "automate_upload",
                     "message": "timeout exception waiting for file input field",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -417,7 +417,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "automate_upload",
                     "message": "timeout exception waiting for upload button to appear",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -452,7 +452,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "automate_upload",
                     "message": "timeout exception waiting for batchimport.aspx page to load",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -482,7 +482,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "automate_upload",
                     "message": "timeout exception waiting for updateAll button to appear",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -584,7 +584,7 @@ class BizBuySellAutomator(BaseLogger):
                         {
                             "method": "_prepare_all_new_imports",
                             "message": "timeout exception waiting for dropdown toggle",
-                            "error": e,
+                            "error": str(e),
                             "file_key": self.s3_updated_file_key,
                         }
                     )
@@ -631,7 +631,7 @@ class BizBuySellAutomator(BaseLogger):
                         {
                             "method": "_prepare_all_new_imports",
                             "message": "timeout exception waiting for Miscellaneous Restaurant and Bar link",
-                            "error": e,
+                            "error": str(e),
                             "file_key": self.s3_updated_file_key,
                         }
                     )
@@ -697,7 +697,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "_wait_for_import_all_completion",
                     "message": "timeout exception waiting for all imports to complete",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -754,7 +754,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "_wait_for_update_all_completion",
                     "message": "timeout exception waiting for all updates to complete",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -965,7 +965,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "logout",
                     "message": "timeout exception waiting for topright dropdown button",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -1007,7 +1007,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "logout",
                     "message": "timeout exception waiting for signout button to appear",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )
@@ -1049,7 +1049,7 @@ class BizBuySellAutomator(BaseLogger):
                 {
                     "method": "logout",
                     "message": "timeout exception waiting for signin button to appear (indicating logout complete)",
-                    "error": e,
+                    "error": str(e),
                     "file_key": self.s3_updated_file_key,
                 }
             )

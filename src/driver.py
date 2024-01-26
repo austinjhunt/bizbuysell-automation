@@ -57,7 +57,7 @@ class Driver(BaseLogger):
                     {
                         "method": "Driver.run_local",
                         "message": "Missing required environment variables for single_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
@@ -105,26 +105,26 @@ class Driver(BaseLogger):
                     {
                         "method": "Driver.run_local",
                         "message": "TimeoutException",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": e, "ip": self.ip},
+                    "body": {"error": str(e), "ip": self.ip},
                 }
             except Exception as e:
                 self.error(
                     {
                         "method": "Driver.run_local",
                         "message": "Exception",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": e, "ip": self.ip},
+                    "body": {"error": str(e), "ip": self.ip},
                 }
 
         elif self.settings["MODE"] == "multi_user":
@@ -136,7 +136,7 @@ class Driver(BaseLogger):
                     {
                         "method": "Driver.run_local",
                         "message": "Missing required environment variables for multi_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
@@ -192,7 +192,7 @@ class Driver(BaseLogger):
                             {
                                 "method": "Driver.run_local",
                                 "message": "Missing AWS S3 environment variables for multi_user mode",
-                                "error": e,
+                                "error": str(e),
                             }
                         )
                         return {
@@ -228,26 +228,26 @@ class Driver(BaseLogger):
                     {
                         "method": "Driver.run_local",
                         "message": "TimeoutException in multi_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": e, "ip": self.ip},
+                    "body": {"error": str(e), "ip": self.ip},
                 }
             except Exception as e:
                 self.error(
                     {
                         "method": "Driver.run_local",
                         "message": "Exception in multi_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": e, "ip": self.ip},
+                    "body": {"error": str(e), "ip": self.ip},
                 }
 
     def run_lambda(self, event, context) -> None:
@@ -271,7 +271,7 @@ class Driver(BaseLogger):
                     {
                         "method": "Driver.run_lambda",
                         "message": "Missing required environment variables for single_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
@@ -319,26 +319,26 @@ class Driver(BaseLogger):
                     {
                         "method": "Driver.run_lambda",
                         "message": "TimeoutException in single_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": e, "ip": self.ip},
+                    "body": {"error": str(e), "ip": self.ip},
                 }
             except Exception as e:
                 self.error(
                     {
                         "method": "Driver.run_lambda",
                         "message": "Exception in single_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": e, "ip": self.ip},
+                    "body": {"error": str(e), "ip": self.ip},
                 }
 
         elif self.settings["MODE"] == "multi_user":
@@ -349,7 +349,7 @@ class Driver(BaseLogger):
                     {
                         "method": "Driver.run_lambda",
                         "message": "Missing required environment variables for multi_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
@@ -405,7 +405,7 @@ class Driver(BaseLogger):
                             {
                                 "method": "Driver.run_lambda",
                                 "message": "Missing AWS S3 environment variables for multi_user mode",
-                                "error": e,
+                                "error": str(e),
                             }
                         )
                         return {
@@ -444,26 +444,26 @@ class Driver(BaseLogger):
                     {
                         "method": "Driver.run_lambda",
                         "message": "TimeoutException in multi_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": e, "ip": self.ip},
+                    "body": {"error": str(e), "ip": self.ip},
                 }
             except Exception as e:
                 self.error(
                     {
                         "method": "Driver.run_lambda",
                         "message": "Exception in multi_user mode",
-                        "error": e,
+                        "error": str(e),
                     }
                 )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": e, "ip": self.ip},
+                    "body": {"error": str(e), "ip": self.ip},
                 }
 
     def handle_s3_trigger_single_user_mode(
@@ -534,24 +534,24 @@ class Driver(BaseLogger):
                 {
                     "method": "Driver.handle_s3_trigger_single_user_mode",
                     "message": "TimeoutException in single_user mode",
-                    "error": e,
+                    "error": str(e),
                 }
             )
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json"},
-                "body": {"error": e, "ip": self.ip},
+                "body": {"error": str(e), "ip": self.ip},
             }
         except Exception as e:
             self.error(
                 {
                     "method": "Driver.handle_s3_trigger_single_user_mode",
                     "message": "Exception in single_user mode",
-                    "error": e,
+                    "error": str(e),
                 }
             )
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json"},
-                "body": {"error": e, "ip": self.ip},
+                "body": {"error": str(e), "ip": self.ip},
             }
