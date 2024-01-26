@@ -1,7 +1,6 @@
 import logging
 import os
 import csv
-import traceback
 import subprocess
 import time
 from selenium.common.exceptions import TimeoutException
@@ -112,7 +111,7 @@ class Driver(BaseLogger):
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc(), "ip": self.ip},
+                    "body": {"error": e, "ip": self.ip},
                 }
             except Exception as e:
                 self.error(
@@ -125,7 +124,7 @@ class Driver(BaseLogger):
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc(), "ip": self.ip},
+                    "body": {"error": e, "ip": self.ip},
                 }
 
         elif self.settings["MODE"] == "multi_user":
@@ -235,7 +234,7 @@ class Driver(BaseLogger):
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc(), "ip": self.ip},
+                    "body": {"error": e, "ip": self.ip},
                 }
             except Exception as e:
                 self.error(
@@ -248,7 +247,7 @@ class Driver(BaseLogger):
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc(), "ip": self.ip},
+                    "body": {"error": e, "ip": self.ip},
                 }
 
     def run_lambda(self, event, context) -> None:
@@ -326,7 +325,7 @@ class Driver(BaseLogger):
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc(), "ip": self.ip},
+                    "body": {"error": e, "ip": self.ip},
                 }
             except Exception as e:
                 self.error(
@@ -339,7 +338,7 @@ class Driver(BaseLogger):
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc(), "ip": self.ip},
+                    "body": {"error": e, "ip": self.ip},
                 }
 
         elif self.settings["MODE"] == "multi_user":
@@ -451,7 +450,7 @@ class Driver(BaseLogger):
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc(), "ip": self.ip},
+                    "body": {"error": e, "ip": self.ip},
                 }
             except Exception as e:
                 self.error(
@@ -464,7 +463,7 @@ class Driver(BaseLogger):
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
-                    "body": {"error": traceback.format_exc(), "ip": self.ip},
+                    "body": {"error": e, "ip": self.ip},
                 }
 
     def handle_s3_trigger_single_user_mode(
@@ -541,7 +540,7 @@ class Driver(BaseLogger):
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json"},
-                "body": {"error": traceback.format_exc(), "ip": self.ip},
+                "body": {"error": e, "ip": self.ip},
             }
         except Exception as e:
             self.error(
@@ -554,5 +553,5 @@ class Driver(BaseLogger):
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json"},
-                "body": {"error": traceback.format_exc(), "ip": self.ip},
+                "body": {"error": e, "ip": self.ip},
             }

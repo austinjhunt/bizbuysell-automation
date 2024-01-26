@@ -1,7 +1,6 @@
 import os
 import csv
 import logging
-import traceback
 from time import sleep
 from selenium import webdriver
 from tempfile import mkdtemp

@@ -3,7 +3,6 @@ by leveraging NAT gateways and Elastic IP assignment to an AWS Function within
 the context of that AWS function """
 
 import requests
-import traceback
 from log import BaseLogger
 
 
@@ -48,11 +47,23 @@ class NetworkUtility(BaseLogger):
                 }
             )
             return ip
-        except requests.exceptions.Timeout:
-            self.error(traceback.format_exc())
+        except requests.exceptions.Timeout as e:
+            self.error(
+                {
+                    "method": "get_public_ip",
+                    "args": {},
+                    "message": f"Timeout error: {e}",
+                }
+            )
             return None
-        except requests.RequestException:
-            self.error(traceback.format_exc())
+        except requests.RequestException as e2:
+            self.error(
+                {
+                    "method": "get_public_ip",
+                    "args": {},
+                    "message": f"Request error: {e2}",
+                }
+            )
             return None
 
     # make printable
