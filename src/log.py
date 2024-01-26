@@ -1,5 +1,6 @@
 import io
 import logging
+import json
 
 """ Parent class inherited by other classes for handling logging """
 
