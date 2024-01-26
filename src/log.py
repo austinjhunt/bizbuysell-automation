@@ -40,16 +40,16 @@ class BaseLogger:
 
     def debug(self, msg) -> None:
         if isinstance(msg, dict):
-            msg = json.dumps(msg, indent=4)
+            msg = json.dumps(msg)
 
         self.logger.debug(msg, extra={"prefix": self.name})
 
     def info(self, msg) -> None:
         if isinstance(msg, dict):
-            msg = json.dumps(msg, indent=4)
+            msg = json.dumps(msg)
         self.logger.info(msg, extra={"prefix": self.name})
 
     def error(self, msg) -> None:
         if isinstance(msg, dict):
-            msg = json.dumps(msg, indent=4)
+            msg = json.dumps(msg)
         self.logger.error(msg, extra={"prefix": self.name})
