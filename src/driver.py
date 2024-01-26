@@ -24,12 +24,24 @@ class Driver(BaseLogger):
         super().__init__(name="Driver", settings=settings)
         self.net = NetworkUtility(settings=settings)
         self.ip = self.net.get_public_ip()
+        self.info(
+            {
+                "method": "Driver.__init__",
+                "args": {"settings": "***"},
+                "message": "Initializing Driver",
+            }
+        )
 
     def run_local(self, event, context) -> dict:
         """Method to run the automation on a local server without AWS lambda.
         Uses environment variables instead of lambda event to drive execution"""
-        self.info("Running local execution with values from environment variables")
-
+        self.info(
+            {
+                "method": "Driver.run_local",
+                "args": {"event": event, "context": context},
+                "message": "Running local execution with values from environment variables",
+            }
+        )
         if self.settings["MODE"] == "single_user":
             try:
                 # required variables are present
@@ -42,7 +54,13 @@ class Driver(BaseLogger):
                     ]
                 )
             except AssertionError as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_local",
+                        "message": "Missing required environment variables for single_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -55,7 +73,12 @@ class Driver(BaseLogger):
                         "ip": self.ip,
                     },
                 }
-            self.info("Creating automator with MODE=single_user")
+            self.info(
+                {
+                    "method": "Driver.run_local",
+                    "message": "Creating automator with MODE=single_user",
+                }
+            )
             try:
                 automator = BizBuySellAutomator(
                     network_utility=self.net, settings=self.settings
@@ -79,14 +102,26 @@ class Driver(BaseLogger):
                     },
                 }
             except TimeoutException as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_local",
+                        "message": "TimeoutException",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
                     "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
             except Exception as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_local",
+                        "message": "Exception",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -98,7 +133,13 @@ class Driver(BaseLogger):
                 # required variable is present
                 assert self.settings["MULTI_USER_CSV"] is not None
             except AssertionError as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_local",
+                        "message": "Missing required environment variables for multi_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -112,7 +153,12 @@ class Driver(BaseLogger):
                     },
                 }
             try:
-                self.info("Creating automator with mode=multi_user")
+                self.info(
+                    {
+                        "method": "Driver.run_local",
+                        "message": "Creating automator with MODE=multi_user",
+                    }
+                )
                 automator = BizBuySellAutomator(
                     network_utility=self.net, settings=self.settings
                 )
@@ -143,7 +189,13 @@ class Driver(BaseLogger):
                             ]
                         )
                     except AssertionError as e:
-                        self.error(traceback.format_exc())
+                        self.error(
+                            {
+                                "method": "Driver.run_local",
+                                "message": "Missing AWS S3 environment variables for multi_user mode",
+                                "error": e,
+                            }
+                        )
                         return {
                             "statusCode": 500,
                             "headers": {"Content-Type": "application/json"},
@@ -173,14 +225,26 @@ class Driver(BaseLogger):
                     "body": {"success": (f"batch uploads complete for multiple users")},
                 }
             except TimeoutException as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_local",
+                        "message": "TimeoutException in multi_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
                     "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
             except Exception as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_local",
+                        "message": "Exception in multi_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -189,7 +253,12 @@ class Driver(BaseLogger):
 
     def run_lambda(self, event, context) -> None:
         """Run automation with AWS lambda using event to drive execution"""
-        self.info("Running AWS Lambda execution with values from event")
+        self.info(
+            {
+                "method": "Driver.run_lambda",
+                "message": "Running AWS Lambda execution with values from event",
+            }
+        )
         # Try to pull args from event first. If not present in event, then try environment variables.
         if self.settings["MODE"] == "single_user":
             try:
@@ -199,7 +268,13 @@ class Driver(BaseLogger):
                     for x in ["USERNAME", "PASSWORD", "CSV"]
                 )
             except AssertionError as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_lambda",
+                        "message": "Missing required environment variables for single_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -212,8 +287,13 @@ class Driver(BaseLogger):
                         "ip": self.ip,
                     },
                 }
-            self.info("Creating automator with MODE=single_user")
             try:
+                self.info(
+                    {
+                        "method": "Driver.run_lambda",
+                        "message": "Creating automator with MODE=single_user",
+                    }
+                )
                 automator = BizBuySellAutomator(
                     network_utility=self.net, settings=self.settings
                 )
@@ -236,14 +316,26 @@ class Driver(BaseLogger):
                     },
                 }
             except TimeoutException as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_lambda",
+                        "message": "TimeoutException in single_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
                     "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
             except Exception as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_lambda",
+                        "message": "Exception in single_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -254,7 +346,13 @@ class Driver(BaseLogger):
             try:
                 assert self.settings["MULTI_USER_CSV"] is not None
             except AssertionError as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_lambda",
+                        "message": "Missing required environment variables for multi_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -268,7 +366,12 @@ class Driver(BaseLogger):
                     },
                 }
             try:
-                self.info("Creating automator with MODE=multi_user")
+                self.info(
+                    {
+                        "method": "Driver.run_lambda",
+                        "message": "Creating automator with MODE=multi_user",
+                    }
+                )
                 automator = BizBuySellAutomator(
                     network_utility=self.net, settings=self.settings
                 )
@@ -299,7 +402,13 @@ class Driver(BaseLogger):
                             ]
                         )
                     except AssertionError as e:
-                        self.error(traceback.format_exc())
+                        self.error(
+                            {
+                                "method": "Driver.run_lambda",
+                                "message": "Missing AWS S3 environment variables for multi_user mode",
+                                "error": e,
+                            }
+                        )
                         return {
                             "statusCode": 500,
                             "headers": {"Content-Type": "application/json"},
@@ -332,14 +441,26 @@ class Driver(BaseLogger):
                     },
                 }
             except TimeoutException as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_lambda",
+                        "message": "TimeoutException in multi_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
                     "body": {"error": traceback.format_exc(), "ip": self.ip},
                 }
             except Exception as e:
-                self.error(traceback.format_exc())
+                self.error(
+                    {
+                        "method": "Driver.run_lambda",
+                        "message": "Exception in multi_user mode",
+                        "error": e,
+                    }
+                )
                 return {
                     "statusCode": 500,
                     "headers": {"Content-Type": "application/json"},
@@ -358,19 +479,40 @@ class Driver(BaseLogger):
         s3_bucket (str) - name of bucket where file was updated
         s3_updated_file_key (str) - key (location or path) of file updated
         """
-        self.info("Running AWS Lambda execution with values from S3 trigger")
+        self.info(
+            {
+                "method": "Driver.handle_s3_trigger_single_user_mode",
+                "args": {
+                    "s3_bucket": s3_bucket,
+                    "s3_updated_file_key": s3_updated_file_key,
+                },
+                "message": "Handling S3 trigger for single_user mode",
+            }
+        )
         self.settings["MODE"] = "single_user"
         try:
-            self.info("Creating automator with MODE=single_user")
+            self.info(
+                {
+                    "method": "Driver.handle_s3_trigger_single_user_mode",
+                    "message": "Running single_user mode for file updated in S3",
+                }
+            )
             automator = BizBuySellAutomator(
-                network_utility=self.net, settings=self.settings
+                network_utility=self.net,
+                settings=self.settings,
+                s3_updated_file_key=s3_updated_file_key,
             )
             automator.init_driver()
             creds_for_file = automator.get_creds_for_csv_file(
                 csv_file_path=s3_updated_file_key
             )
             assert creds_for_file is not None
-            self.info(f'Automating user session for user {creds_for_file["username"]}')
+            self.info(
+                {
+                    "method": "Driver.handle_s3_trigger_single_user_mode",
+                    "message": f"Found creds for {s3_updated_file_key}; automating user session for user {creds_for_file['usernme']}",
+                }
+            )
             automator.automate_single_user_session(
                 username=creds_for_file["username"],
                 password=creds_for_file["password"],
@@ -389,14 +531,26 @@ class Driver(BaseLogger):
                 },
             }
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "Driver.handle_s3_trigger_single_user_mode",
+                    "message": "TimeoutException in single_user mode",
+                    "error": e,
+                }
+            )
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json"},
                 "body": {"error": traceback.format_exc(), "ip": self.ip},
             }
         except Exception as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "Driver.handle_s3_trigger_single_user_mode",
+                    "message": "Exception in single_user mode",
+                    "error": e,
+                }
+            )
             return {
                 "statusCode": 500,
                 "headers": {"Content-Type": "application/json"},

@@ -7,7 +7,7 @@ from log import BaseLogger
 class S3Client(BaseLogger):
     """Client for reading files from AWS S3"""
 
-    def __init__(self, settings: dict = {}):
+    def __init__(self, settings: dict = {}, s3_updated_file_key: str = ""):
         """
         Args:
         settings (dict) - settings parsed from a combination of a lambda event and
@@ -15,6 +15,17 @@ class S3Client(BaseLogger):
         vars are defined in both places)
         """
         super().__init__(name="S3Client", settings=settings)
+        self.s3_updated_file_key = s3_updated_file_key
+        self.info(
+            {
+                "method": "S3Client.__init__",
+                "args": {
+                    "settings": "***",
+                    "s3_updated_file_key": self.s3_updated_file_key,
+                },
+                "message": "Initializing S3Client",
+            }
+        )
         if self.settings["ENV"] == "local":
             # permissions come from passed credentials
             self.s3 = boto3.client(
@@ -29,6 +40,14 @@ class S3Client(BaseLogger):
 
     def get_file_metadata(self, bucket_name: str = "", file_key: str = ""):
         """Return an S3 file's metadata given its parent bucket and its key (location in the bucket)"""
+        self.info(
+            {
+                "method": "get_file_metadata",
+                "args": {"bucket_name": bucket_name, "file_key": file_key},
+                "message": "Getting file metadata from S3",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         res = self.s3.head_object(Bucket=bucket_name, Key=file_key)
         if "Metadata" in res:
             return res["Metadata"]
@@ -64,10 +83,23 @@ class S3Client(BaseLogger):
             ...
         ],
         """
-        self.info(f"Getting files from S3 (bucket={bucket_name})")
+        self.info(
+            {
+                "method": "get_all_files_from_s3_bucket",
+                "args": {"bucket_name": bucket_name},
+                "message": "Getting all files from S3 bucket",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         response = self.s3.list_objects_v2(Bucket=bucket_name)
-        self.debug("Response from s3.list_objects_v2: ")
-        self.debug(response)
+        self.debug(
+            {
+                "method": "get_all_files_from_s3_bucket",
+                "message": "Response from S3",
+                "response": response,
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         files_in_bucket = response["Contents"]
         return files_in_bucket
 
@@ -86,8 +118,16 @@ class S3Client(BaseLogger):
         destination (str) - local path to downloaded file
         """
         self.info(
-            f"Downloading file from S3 (Key={file_key}, Bucket={bucket_name},"
-            f"temporary_filename={temporary_filename})"
+            {
+                "method": "download_file_from_s3_bucket",
+                "args": {
+                    "bucket_name": bucket_name,
+                    "file_key": file_key,
+                    "temporary_filename": temporary_filename,
+                },
+                "message": "Downloading file from S3",
+                "file_key": self.s3_updated_file_key,
+            }
         )
         if not temporary_filename:
             temporary_filename = "tmp.csv"
@@ -108,6 +148,13 @@ class GoogleDriveClient(BaseLogger):
         the environment variables (with priority given to lambda event in cases where
         vars are defined in both places)
         """
+        self.info(
+            {
+                "method": "GoogleDriveClient.__init__",
+                "args": {"settings": "***"},
+                "message": "Initializing GoogleDriveClient",
+            }
+        )
         super().__init__(name="S3Client", settings=settings)
 
     def get_google_drive_file_id_from_shared_link(self, shared_link: str) -> str:
@@ -116,6 +163,13 @@ class GoogleDriveClient(BaseLogger):
         Returns:
         file_id (str) - ID of the Google Drive file
         """
+        self.info(
+            {
+                "method": "get_google_drive_file_id_from_shared_link",
+                "args": {"shared_link": shared_link},
+                "message": "Getting Google Drive file ID from shared link",
+            }
+        )
         return shared_link.split("https://drive.google.com/file/d/")[1].split("/")[0]
 
     def download_file_from_google_drive(
@@ -130,8 +184,14 @@ class GoogleDriveClient(BaseLogger):
         destination (str) - local path to downloaded file
         """
         self.info(
-            f"Downloading file from Google Drive (link={shared_link},"
-            f"temporary_filename={temporary_filename})"
+            {
+                "method": "download_file_from_google_drive",
+                "args": {
+                    "shared_link": shared_link,
+                    "temporary_filename": temporary_filename,
+                },
+                "message": "Downloading file from Google Drive",
+            }
         )
         if not temporary_filename:
             temporary_filename = "tmp.csv"
@@ -151,6 +211,13 @@ class GoogleDriveClient(BaseLogger):
         response (requests.Response) - file download response
         destination (str) - path to local file to which content should be written"""
         CHUNK_SIZE = 32768
+        self.info(
+            {
+                "method": "save_response_content",
+                "args": {"destination": destination},
+                "message": f"Saving response content with chunk size {CHUNK_SIZE}",
+            }
+        )
         with open(destination, "wb") as f:
             for chunk in response.iter_content(CHUNK_SIZE):
                 if chunk:  # filter out keep-alive new chunks

@@ -36,7 +36,12 @@ class all_elements_satisfy(object):
 
 
 class BizBuySellAutomator(BaseLogger):
-    def __init__(self, network_utility: NetworkUtility = None, settings: dict = {}):
+    def __init__(
+        self,
+        network_utility: NetworkUtility = None,
+        settings: dict = {},
+        s3_updated_file_key: str = "",
+    ):
         """
         Initialize the automator to automate a BizBuySell.com upload session
         Args:
@@ -49,6 +54,18 @@ class BizBuySellAutomator(BaseLogger):
         """
         super().__init__(name="BizBuySellAutomator", settings=settings)
         self.net = network_utility
+        self.s3_updated_file_key = s3_updated_file_key
+        self.info(
+            {
+                "method": "__init__",
+                "args": {
+                    "network_utility": "***",
+                    "settings": "***",
+                    "s3_updated_file_key": s3_updated_file_key,
+                },
+                "message": "Initializing BizBuySellAutomator",
+            }
+        )
         if self.settings["FILE_SOURCE"] == "google_drive":
             self.gdrive_client = GoogleDriveClient(settings=self.settings)
         elif self.settings["FILE_SOURCE"] == "s3":
@@ -62,17 +79,33 @@ class BizBuySellAutomator(BaseLogger):
                     ]
                 )
             except AssertionError as e:
-                self.error(traceback.format_exc())
-            self.s3_client = S3Client(settings=self.settings)
+                self.error(
+                    {
+                        "method": "__init__",
+                        "message": "Missing required AWS S3 environment variables",
+                        "file_key": self.s3_updated_file_key,
+                        "error": e,
+                    }
+                )
+            self.s3_client = S3Client(
+                settings=self.settings, s3_updated_file_key=s3_updated_file_key
+            )
 
     def init_driver(self) -> None:
         """set self.driver to a Chrome driver using Selenium"""
-        self.info("Creating Chrome driver")
         # Set up the ChromeDriver with the executable file paths
         chrome_binary_path = self.settings["CHROME_PATH"]
         webdriver_path = self.settings["CHROME_DRIVER_PATH"]
-        self.debug(f"Chrome Binary Path: {chrome_binary_path}")
-        self.debug(f"Chrome Driver Path: {webdriver_path}")
+        self.info(
+            {
+                "method": "init_driver",
+                "args": {},
+                "message": "Initializing ChromeDriver",
+                "file_key": self.s3_updated_file_key,
+                "chrome_binary_path": chrome_binary_path,
+                "webdriver_path": webdriver_path,
+            }
+        )
         options = webdriver.ChromeOptions()
         options.binary_location = chrome_binary_path
         options.add_argument("--no-sandbox")
@@ -100,7 +133,14 @@ class BizBuySellAutomator(BaseLogger):
                 "--headless",
                 "--single-process",
             ]:  # comment out the proxy temporarily #, f'--proxy-server={TOR_PROXIES["https"]}']:
-                self.debug(f"Adding production arg {prod_arg} to Chrome driver")
+                self.debug(
+                    {
+                        "method": "init_driver",
+                        "message": "Adding production arg",
+                        "file_key": self.s3_updated_file_key,
+                        "prod_arg": prod_arg,
+                    }
+                )
                 options.add_argument(prod_arg)
 
         # Initialize ChromeDriver instance
@@ -116,9 +156,23 @@ class BizBuySellAutomator(BaseLogger):
         Returns:
         None
         """
+        self.info(
+            {
+                "method": "wait_and_retry",
+                "args": {"callback.__name__": callback.__name__, "timeout": timeout},
+                "message": "Waiting and retrying",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         max_tries = int(os.environ.get("MAX_TRIES", 3))
         for i in range(max_tries):
-            self.debug(f"Attempt {i+1} of {max_tries} for WebDriverWait")
+            self.debug(
+                {
+                    "method": "wait_and_retry",
+                    "message": f"Attempt {i+1} of {max_tries}",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             try:
                 return callback(WebDriverWait(self.driver, timeout))
                 break
@@ -169,6 +223,14 @@ class BizBuySellAutomator(BaseLogger):
         Returns:
         None
         """
+        self.info(
+            {
+                "method": "login",
+                "message": "Logging in",
+                "args": {"username": username, "password": "*" * len(password)},
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
         def wait_for_login_page_elements_callback(wait):
             login_url = "https://www.bizbuysell.com/users/login.aspx"
@@ -176,13 +238,26 @@ class BizBuySellAutomator(BaseLogger):
             wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
 
         try:
-            self.debug("wait_and_retry for login page elements")
+            self.debug(
+                {
+                    "method": "login",
+                    "message": "Waiting for login page elements",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             self.wait_and_retry(
                 callback=wait_for_login_page_elements_callback,
                 timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "login",
+                    "message": "timeout exception waiting for login page",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
         # Have to use JS to populate "placeholder" input field, then trigger an input event
         # to get the real input fields to populate before clicking button
@@ -195,22 +270,47 @@ class BizBuySellAutomator(BaseLogger):
             f'document.getElementById("ctl00_ctl00_Content_ContentPlaceHolder1_LoginControl_BtnLogin").click();'
         )
 
-        self.debug("Waiting for login completion (for dashboard to display)")
+        self.debug(
+            {
+                "method": "login",
+                "message": "Waiting for login completion (for dashboard to display)",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
         def wait_for_dashboard_element_callback(wait):
             wait.until(EC.presence_of_element_located((By.ID, "brokerHdrDashboard")))
 
         try:
-            self.debug("wait_and_retry for #brokerHdrDashboard element")
+            self.debug(
+                {
+                    "method": "login",
+                    "message": "wait_and_retry for dashboard element",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             self.wait_and_retry(
                 callback=wait_for_dashboard_element_callback,
                 timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "login",
+                    "message": "timeout exception when logging in",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
 
-        self.debug("Now logged in!")
+        self.debug(
+            {
+                "method": "login",
+                "message": "Login complete!",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
     def automate_upload(self, csv_file_path: str = "") -> None:
         """
@@ -219,15 +319,34 @@ class BizBuySellAutomator(BaseLogger):
         csv_file_path (str) - path to local CSV to be uploaded for batch listing update
         Returns: Nonee
         """
-        self.info("Beginning automated upload process")
+        self.info(
+            {
+                "method": "automate_upload",
+                "args": {"csv_file_path": csv_file_path},
+                "message": "Beginning automated upload",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
         batch_upload_page_url = (
             "https://www.bizbuysell.com/brokers/batch/batchupload.aspx"
         )
-        self.debug(f"Getting batch upload page {batch_upload_page_url}")
+        self.info(
+            {
+                "method": "automate_upload",
+                "message": f"Getting batch upload page {batch_upload_page_url}",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         self.driver.get(url=batch_upload_page_url)
 
-        self.debug("Waiting for file input field")
+        self.debug(
+            {
+                "method": "automate_upload",
+                "message": "Waiting for batch upload page elements (file input field)",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         # These functions are defined in-line on the page and it
         # enables the submit / upload button below.
         file_input_id = "ctl00_ContentPlaceHolder1_AsyncFileUploadBulkCSV_ctl02"
@@ -238,18 +357,44 @@ class BizBuySellAutomator(BaseLogger):
             return wait.until(EC.presence_of_element_located((By.ID, file_input_id)))
 
         try:
-            self.debug("wait_and_retry for file input field")
+            self.debug(
+                {
+                    "method": "automate_upload",
+                    "message": "wait_and_retry for file input field to appear",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             file_input = self.wait_and_retry(
                 callback=wait_for_file_input_callback,
                 timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "automate_upload",
+                    "message": "timeout exception waiting for file input field",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
-        self.debug(f"Sending CSV file path {csv_file_path} into input field")
+
+        self.info(
+            {
+                "method": "automate_upload",
+                "message": f"Sending CSV file path {csv_file_path} into input field",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         file_input.send_keys(csv_file_path)
         sleep(6)
-        self.debug("Enabling and clicking Upload File button")
+        self.info(
+            {
+                "method": "automate_upload",
+                "message": "Executing AsyncFileUpload_ClientUploadComplete() JS",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         self.driver.execute_script(f"AsyncFileUpload_ClientUploadComplete();")
         sleep(6)
 
@@ -257,28 +402,61 @@ class BizBuySellAutomator(BaseLogger):
             return wait.until(EC.element_to_be_clickable((By.ID, upload_button_id)))
 
         try:
-            self.debug("wait_and_retry for upload button")
+            self.info(
+                {
+                    "method": "automate_upload",
+                    "message": "wait_and_retry for upload button",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             upload_button = self.wait_and_retry(
                 callback=wait_for_upload_button_callback,
                 timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "automate_upload",
+                    "message": "timeout exception waiting for upload button to appear",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
 
+        self.info(
+            {
+                "method": "automate_upload",
+                "message": "Clicking upload button",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         upload_button.click()
 
         def wait_for_batchimport_page_callback(wait):
             wait.until(EC.url_contains("batchimport.aspx"))
 
         try:
-            self.debug("wait_and_retry for batchimport.aspx page to load")
+            self.info(
+                {
+                    "method": "automate_upload",
+                    "message": "wait_and_retry for batchimport.aspx page to load",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             self.wait_and_retry(
                 callback=wait_for_batchimport_page_callback,
                 timeout=self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "automate_upload",
+                    "message": "timeout exception waiting for batchimport.aspx page to load",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
 
         # This brings you to a "Please confirm new listings to import
@@ -289,26 +467,57 @@ class BizBuySellAutomator(BaseLogger):
             return wait.until(EC.element_to_be_clickable((By.ID, "updateAll")))
 
         try:
-            self.debug("wait_and_retry for Update All button")
+            self.info(
+                {
+                    "method": "automate_upload",
+                    "message": "wait_and_retry for updateAll button to appear",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             update_all_button = self.wait_and_retry(
                 callback=wait_for_upload_all_button_callback,
                 timeout=self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "automate_upload",
+                    "message": "timeout exception waiting for updateAll button to appear",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
 
-        self.info("Clicking Update All button")
+        self.info(
+            {
+                "method": "automate_upload",
+                "message": "Clicking updateAll button",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         update_all_button.click()
-
         self._wait_for_update_all_completion()
 
         # If there is also an Import Listings button, click that as well
         # (to handle new listings)
         try:
+            self.info(
+                {
+                    "method": "automate_upload",
+                    "message": "Getting Import All button",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             import_all_button = self.driver.find_element(by=By.ID, value="importAll")
             self._prepare_all_new_imports()
-            self.info("Clicking Import All")
+            self.info(
+                {
+                    "method": "automate_upload",
+                    "message": "Clicking Import All button",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             import_all_button.click()
             self._wait_for_import_all_completion()
         except NoSuchElementException as e:
@@ -326,7 +535,14 @@ class BizBuySellAutomator(BaseLogger):
         Args: None
         Returns: None
         """
-        self.info("Preparing new imports with default Business Type")
+        self.info(
+            {
+                "method": "_prepare_all_new_imports",
+                "args": {},
+                "message": "Preparing all new imports with default Business Type",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         rows_to_be_imported = self.driver.find_elements(
             by=By.CSS_SELECTOR,
             value="#batchListingImports .batchRow",
@@ -353,16 +569,35 @@ class BizBuySellAutomator(BaseLogger):
                     )
 
                 try:
-                    self.debug("wait_and_retry for dropdown toggle")
+                    self.debug(
+                        {
+                            "method": "_prepare_all_new_imports",
+                            "message": "wait_and_retry for dropdown toggle",
+                            "file_key": self.s3_updated_file_key,
+                        }
+                    )
                     dropdown_toggle = self.wait_and_retry(
                         callback=wait_for_dropdown_toggle_callback,
                         timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
                     )
                 except TimeoutException as e:
-                    self.error(traceback.format_exc())
+                    self.error(
+                        {
+                            "method": "_prepare_all_new_imports",
+                            "message": "timeout exception waiting for dropdown toggle",
+                            "error": e,
+                            "file_key": self.s3_updated_file_key,
+                        }
+                    )
                     raise e
 
-                self.debug("Clicking dropdown toggle")
+                self.debug(
+                    {
+                        "method": "_prepare_all_new_imports",
+                        "message": "Clicking dropdown toggle",
+                        "file_key": self.s3_updated_file_key,
+                    }
+                )
                 dropdown_toggle.click()
 
                 # now choose the option containing text Miscellaneous Restaurant and Bar
@@ -382,20 +617,43 @@ class BizBuySellAutomator(BaseLogger):
 
                 try:
                     self.debug(
-                        "wait_and_retry for Miscellaneous Restaurant and Bar link"
+                        {
+                            "method": "_prepare_all_new_imports",
+                            "message": "wait_and_retry for Miscellaneous Restaurant and Bar link",
+                            "file_key": self.s3_updated_file_key,
+                        }
                     )
                     miscellaneous_restaurant_bar_link = self.wait_and_retry(
                         callback=wait_for_business_type_dropdown_menu_callback,
                         timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
                     )
                 except TimeoutException as e:
-                    self.error(traceback.format_exc())
+                    self.error(
+                        {
+                            "method": "_prepare_all_new_imports",
+                            "message": "timeout exception waiting for Miscellaneous Restaurant and Bar link",
+                            "error": e,
+                            "file_key": self.s3_updated_file_key,
+                        }
+                    )
                     raise e
 
-                self.debug("Clicking Miscellaneous Restaurant and Bar link")
+                self.debug(
+                    {
+                        "method": "_prepare_all_new_imports",
+                        "message": "Clicking Miscellaneous Restaurant and Bar link",
+                        "file_key": self.s3_updated_file_key,
+                    }
+                )
                 miscellaneous_restaurant_bar_link.click()
 
-        self.info("All imports are prepared with default business type")
+        self.info(
+            {
+                "method": "_prepare_all_new_imports",
+                "message": "All imports are prepared with default business type",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
     def _wait_for_import_all_completion(self) -> None:
         """
@@ -403,7 +661,14 @@ class BizBuySellAutomator(BaseLogger):
         records that need updating to update. They should all have the word complete
         in their status column.
         """
-        self.info("Waiting for completion of Import Listings operation")
+        self.info(
+            {
+                "method": "_wait_for_import_all_completion",
+                "args": {},
+                "message": "Waiting for completion of Import Listings operation",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
         def wait_for_import_all_completion_callback(wait):
             wait.until(
@@ -417,16 +682,35 @@ class BizBuySellAutomator(BaseLogger):
             )
 
         try:
-            self.debug("wait_and_retry for all imports to complete")
+            self.debug(
+                {
+                    "method": "_wait_for_import_all_completion",
+                    "message": "wait_and_retry for all imports to complete",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             self.wait_and_retry(
                 callback=wait_for_import_all_completion_callback,
                 timeout=self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "_wait_for_import_all_completion",
+                    "message": "timeout exception waiting for all imports to complete",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
 
-        self.info("Import All operation complete!")
+        self.info(
+            {
+                "method": "_wait_for_import_all_completion",
+                "message": "Import Listings operation complete!",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
     def _wait_for_update_all_completion(self) -> None:
         """
@@ -434,7 +718,14 @@ class BizBuySellAutomator(BaseLogger):
         records that need updating to update. They should all have the word complete
         in their status column.
         """
-        self.info("Waiting for completion of Update Listings operation")
+        self.info(
+            {
+                "method": "_wait_for_update_all_completion",
+                "args": {},
+                "message": "Waiting for completion of Update Listings operation",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
         def wait_for_update_all_completion_callback(wait):
             wait.until(
@@ -448,16 +739,35 @@ class BizBuySellAutomator(BaseLogger):
             )
 
         try:
-            self.debug("wait_and_retry for all updates to complete")
+            self.info(
+                {
+                    "method": "_wait_for_update_all_completion",
+                    "message": "wait_and_retry for all updates to complete",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             self.wait_and_retry(
                 callback=wait_for_update_all_completion_callback,
                 timeout=self.settings["WEBDRIVER_UPLOAD_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "_wait_for_update_all_completion",
+                    "message": "timeout exception waiting for all updates to complete",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
 
-        self.info("Update All operation complete!")
+        self.info(
+            {
+                "method": "_wait_for_update_all_completion",
+                "message": "Update Listings operation complete!",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
     def _convert_shared_google_drive_link_to_downloadable_link(
         self, shared_link: str
@@ -469,14 +779,27 @@ class BizBuySellAutomator(BaseLogger):
         Returns:
         downloadable_link (str) - link that you can download using requests.get()
         """
-        self.info(f"Converting shared link to downloadable link")
+        self.info(
+            {
+                "method": "_convert_shared_google_drive_link_to_downloadable_link",
+                "args": {"shared_link": shared_link},
+                "message": f"Converting {shared_link} to downloadable link",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         drive_file_id = shared_link.split("https://drive.google.com/file/d/")[1].split(
             "/"
         )[0]
         downloadable_link = (
             f"https://drive.google.com/u/0/uc?id={drive_file_id}&export=download"
         )
-        self.debug(f"Converted {shared_link} to downloadable link {downloadable_link}")
+        self.debug(
+            {
+                "method": "_convert_shared_google_drive_link_to_downloadable_link",
+                "message": f"Converted {shared_link} to {downloadable_link}",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         return downloadable_link
 
     def get_creds_for_csv_file(self, csv_file_path: str):
@@ -488,7 +811,12 @@ class BizBuySellAutomator(BaseLogger):
         creds (dict) - {"username": <username>, "password": <password>}
         """
         self.info(
-            f"Pulling credentials for {csv_file_path} from {self.settings['CREDENTIALS_FILE']}"
+            {
+                "method": "get_creds_for_csv_file",
+                "args": {"csv_file_path": csv_file_path},
+                "message": f"Pulling credentials for {csv_file_path} from {self.settings['CREDENTIALS_FILE']}",
+                "file_key": self.s3_updated_file_key,
+            }
         )
         creds_file_path = self.s3_client.download_file_from_s3_bucket(
             bucket_name=self.settings["AWS_S3_BUCKET"],
@@ -506,9 +834,24 @@ class BizBuySellAutomator(BaseLogger):
                 if filename in csv_file_path:
                     username = line["Email"]
                     password = line["Password"]
-                    self.info(f"Credentials found!")
+                    self.info(
+                        {
+                            "method": "get_creds_for_csv_file",
+                            "message": f"Found credentials for {csv_file_path} in {self.settings['CREDENTIALS_FILE']}",
+                            "file_key": self.s3_updated_file_key,
+                            # obfuscate password
+                            "username": username,
+                            "password": "*" * len(password),
+                        }
+                    )
                     return {"username": line["Email"], "password": line["Password"]}
-        self.error("Credentials not found")
+        self.error(
+            {
+                "method": "get_creds_for_csv_file",
+                "message": f"Could not find credentials for {csv_file_path} in {self.settings['CREDENTIALS_FILE']}",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         return None
 
     def automate_single_user_session(
@@ -528,7 +871,18 @@ class BizBuySellAutomator(BaseLogger):
 
         Returns: None
         """
-        self.info(f"Automating user session for {username}")
+        self.info(
+            {
+                "method": "automate_single_user_session",
+                "args": {
+                    "username": username,
+                    "password": "*" * len(password),
+                    "csv_path": csv_path,
+                },
+                "message": f"Automating single user session for {username}",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
         self.login(username=username, password=password)
 
@@ -561,7 +915,14 @@ class BizBuySellAutomator(BaseLogger):
         self.logout()
 
     def automate_multiple_user_sessions(self, csv_file_path: str = "") -> None:
-        self.info("Automating multiple user batch upload sessions")
+        self.info(
+            {
+                "method": "automate_multiple_user_sessions",
+                "args": {"csv_file_path": csv_file_path},
+                "message": f"Automating multiple user sessions from provided CSV",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         with open(csv_file_path, "r") as f:
             reader = csv.DictReader(f)
             for user_row in reader:
@@ -576,22 +937,48 @@ class BizBuySellAutomator(BaseLogger):
         # Get the sign out button from the collapsible
         # menu in the navigation with a CSS selector
         chain = ActionChains(self.driver, duration=2000)
-        self.info("Logging out")
+        self.info(
+            {
+                "method": "logout",
+                "args": {},
+                "message": "Logging out",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
         def wait_for_topright_dropdown_button_callback(wait):
             return wait.until(EC.element_to_be_clickable((By.ID, "dropMyBBS")))
 
         try:
-            self.debug("wait_and_retry for topright dropdown button")
+            self.info(
+                {
+                    "method": "logout",
+                    "message": "wait_and_retry for topright dropdown button",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             topright_dropdown_button = self.wait_and_retry(
                 callback=wait_for_topright_dropdown_button_callback,
                 timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "logout",
+                    "message": "timeout exception waiting for topright dropdown button",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
 
-        self.info("Clicking top right dropdown button")
+        self.info(
+            {
+                "method": "logout",
+                "message": "Clicking topright dropdown button",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         topright_dropdown_button.click()
 
         def wait_for_signout_button_callback(wait):
@@ -605,16 +992,35 @@ class BizBuySellAutomator(BaseLogger):
             )
 
         try:
-            self.debug("wait_and_retry for signout button")
+            self.info(
+                {
+                    "method": "logout",
+                    "message": "wait_and_retry for signout button to appear",
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             signout_button = self.wait_and_retry(
                 callback=wait_for_signout_button_callback,
                 timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "logout",
+                    "message": "timeout exception waiting for signout button to appear",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
 
-        self.debug("Clicking signout button")
+        self.info(
+            {
+                "method": "logout",
+                "message": "Clicking signout button",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
         signout_button.click()
 
         def wait_for_signin_button_callback(wait):
@@ -628,18 +1034,35 @@ class BizBuySellAutomator(BaseLogger):
             )
 
         try:
-            self.debug(
-                "wait_and_retry for signin button to appear (indicates logout sucess)"
+            self.info(
+                {
+                    "method": "logout",
+                    "message": "wait_and_retry for signin button to appear (indicating logout complete)",
+                    "file_key": self.s3_updated_file_key,
+                }
             )
             self.wait_and_retry(
                 callback=wait_for_signin_button_callback,
                 timeout=self.settings["WEBDRIVER_TIMEOUT_SECONDS"],
             )
         except TimeoutException as e:
-            self.error(traceback.format_exc())
+            self.error(
+                {
+                    "method": "logout",
+                    "message": "timeout exception waiting for signin button to appear (indicating logout complete)",
+                    "error": e,
+                    "file_key": self.s3_updated_file_key,
+                }
+            )
             raise e
 
-        self.info("Logged out! Sign in button is present.")
+        self.info(
+            {
+                "method": "logout",
+                "message": "Logout complete!",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
     def quit(self) -> None:
         """Log the user out of the web app and quit
@@ -647,7 +1070,14 @@ class BizBuySellAutomator(BaseLogger):
         Arguments: None
         Returns: None
         """
-        self.info("Shutting down")
+        self.info(
+            {
+                "method": "quit",
+                "args": {},
+                "message": "Shutting down the session",
+                "file_key": self.s3_updated_file_key,
+            }
+        )
 
         self.driver.close()
-        self.driver.quit()
+        self.driver.quit()  #
