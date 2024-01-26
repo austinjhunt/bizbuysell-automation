@@ -509,7 +509,7 @@ class Driver(BaseLogger):
             self.info(
                 {
                     "method": "Driver.handle_s3_trigger_single_user_mode",
-                    "message": f"Found creds for {s3_updated_file_key}; automating user session for user {creds_for_file['usernme']}",
+                    "message": f"Found creds for {s3_updated_file_key}; automating user session for user {creds_for_file['username']}",
                 }
             )
             automator.automate_single_user_session(
