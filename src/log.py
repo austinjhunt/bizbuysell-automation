@@ -1,15 +1,16 @@
 import io
-import logging 
+import logging
+
 """ Parent class inherited by other classes for handling logging """
 
 
 class BaseLogger:
     def __init__(self, name: str = "", settings: dict = {}):
-        """ 
+        """
         Args:
         name (str) - name for this instance, will appear as a prefix in log statements
-        settings (dict) - settings parsed from a combination of a lambda event and 
-        the environment variables (with priority given to lambda event in cases where 
+        settings (dict) - settings parsed from a combination of a lambda event and
+        the environment variables (with priority given to lambda event in cases where
         vars are defined in both places)
         """
         self.name = name
@@ -23,7 +24,7 @@ class BaseLogger:
         """
         self.logger = logging.getLogger(self.name)
         self.logger.propagate = False
-        level = logging.DEBUG if self.settings['VERBOSE'] else logging.INFO
+        level = logging.DEBUG if self.settings["VERBOSE"] else logging.INFO
         self.logger.setLevel(level)
 
         if self.logger.hasHandlers():
@@ -37,10 +38,17 @@ class BaseLogger:
         self.logger.addHandler(handlerStream)
 
     def debug(self, msg) -> None:
+        if isinstance(msg, dict):
+            msg = json.dumps(msg, indent=4)
+
         self.logger.debug(msg, extra={"prefix": self.name})
 
     def info(self, msg) -> None:
+        if isinstance(msg, dict):
+            msg = json.dumps(msg, indent=4)
         self.logger.info(msg, extra={"prefix": self.name})
 
     def error(self, msg) -> None:
+        if isinstance(msg, dict):
+            msg = json.dumps(msg, indent=4)
         self.logger.error(msg, extra={"prefix": self.name})
