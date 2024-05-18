@@ -258,14 +258,19 @@ class BizBuySellAutomator(BaseLogger):
                 }
             )
             raise e
+
         # Have to use JS to populate "placeholder" input field, then trigger an input event
         # to get the real input fields to populate before clicking button
+        # TODO: change IDs, BBS updated login page HTML structure.
+
+        ## Fill input with ID=ctl00_ctl00_Content_ContentPlaceHolder1_LoginControl_txtUserName with username
+        ## Fill input with ID=ctl00_ctl00_Content_ContentPlaceHolder1_LoginControl_txtPassword with password
         self.driver.execute_script(
             f'const inputEvent = new Event("input"); '
-            f'document.getElementById("txtUserNamePlaceHolder").value = "{username}";'
-            f'document.getElementById("txtUserNamePlaceHolder").dispatchEvent(inputEvent);'
-            f'document.getElementById("txtPasswordPlaceHolder").value = "{password}";'
-            f'document.getElementById("txtPasswordPlaceHolder").dispatchEvent(inputEvent);'
+            f'document.getElementById("ctl00_ctl00_Content_ContentPlaceHolder1_LoginControl_txtUserName").value = "{username}";'
+            f'document.getElementById("ctl00_ctl00_Content_ContentPlaceHolder1_LoginControl_txtUserName").dispatchEvent(inputEvent);'
+            f'document.getElementById("ctl00_ctl00_Content_ContentPlaceHolder1_LoginControl_txtPassword").value = "{password}";'
+            f'document.getElementById("ctl00_ctl00_Content_ContentPlaceHolder1_LoginControl_txtPassword").dispatchEvent(inputEvent);'
             f'document.getElementById("ctl00_ctl00_Content_ContentPlaceHolder1_LoginControl_BtnLogin").click();'
         )
 
