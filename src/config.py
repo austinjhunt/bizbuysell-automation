@@ -40,10 +40,10 @@ def get_settings(event: dict = {}):
     # now handle the ints
     settings = settings | {
         "WEBDRIVER_TIMEOUT_SECONDS": int(
-            os.environ.get("WEBDRIVER_TIMEOUT_SECONDS", "15")
+            os.environ.get("WEBDRIVER_TIMEOUT_SECONDS", "120")
         ),
         "WEBDRIVER_UPLOAD_TIMEOUT_SECONDS": int(
-            os.environ.get("WEBDRIVER_UPLOAD_TIMEOUT_SECONDS", "30")
+            os.environ.get("WEBDRIVER_UPLOAD_TIMEOUT_SECONDS", "120")
         ),
     }
     # handle bools
