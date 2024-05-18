@@ -289,3 +289,130 @@ I've added a section to the `lambda_handler` in [main.py](src/main.py) to check 
 6. **Reading creds:** The Lambda reads the `CREDENTIALS_FILE` specified as an environment variable from the root of the same S3 bucket `wsr-integrations` and pulls the creds corresponding to the file with the file key from the trigger event. (Specifically, it pulls the Email and Password where the File Name matches the trigger event file key). NOTE: **This CREDENTIALS_FILE is stored in the root of the same bucket** `wsr-integrations`, not in the `bbs` folder. This is because updates to this credentials file should not trigger the Lambda function. If the credentials file does not contain creds for a given file that triggers the Lambda, an error will be returned.
 7. The Lambda downloads the file using the key from the S3 trigger event.
 8. The Lambda uses the credentials from `CREDENTIALS_FILE` to automate the upload of the downloaded file to bizbuysell.com.
+
+
+
+## Meeting Notes - 5/18/2024, Austin Hunt & Jaime Gassete
+We now know that the login page of the BBS site has changed in structure (new HTML IDs particularly). 
+
+We confirmed this by looking at current version of the site versus the old version (from the Wayback Machine). 
+
+We reviewed process for deploying new code. 
+- Change code
+- Add, commit, and push to Github
+- Run the "Push commands" pulled from ECR (Elastic Container Registry)
+- Open AWS Lambda "bizbuysell" and "Deploy new image", using the "latest" tag by default. 
+
+Austin proposes using GitHub actions to auto-run these ECR push commands whenever main branch is updated in the GitHub repo. 
+### Addressing Timeouts
+Whenever there is a `TimeoutException`, and we've reached `MAX_TRIES`, the lambda function currently just raises an exception and stops. However, it can potentially retrigger itself automatically which gives it a new IP. To do this, the IAM role on the Lambda function (AWS Lambda -> bizbuysell lambda -> Configuration -> Permissions -> Execution Role) must have the following permissions added if not already added: 
+
+```json
+{
+    "Effect": "Allow",
+    "Action": "lambda:InvokeFunction",
+    "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:FUNCTION_NAME"
+}
+```
+
+The current code for handling timeouts:
+
+```python
+
+def wait_and_retry(self, callback, timeout):
+	"""
+	Helper method to retry a callback n times (n from environment MAX_TRIES)
+	Arguments:
+	callback (function) - function to retry
+	Returns:
+	None
+	"""
+	self.info(
+		{
+			"method": "wait_and_retry",
+			"args": {"callback.__name__": callback.__name__, "timeout": timeout},
+			"message": "Waiting and retrying",
+			"file_key": self.s3_updated_file_key,
+		}
+	)
+	max_tries = int(os.environ.get("MAX_TRIES", 3))
+	for i in range(max_tries):
+		self.debug(
+			{
+				"method": "wait_and_retry",
+				"message": f"Attempt {i+1} of {max_tries}",
+				"file_key": self.s3_updated_file_key,
+			}
+		)
+		try:
+			return callback(WebDriverWait(self.driver, timeout))
+			break
+
+		## Assume we're waiting for a login page to load .... 
+		## And it hits a timeout after 6 tries (MAX_TRIES=6). 
+		## Right now, we just end by raising an exception. 
+		except TimeoutException as e:
+			if i == int(os.environ.get("MAX_TRIES", max_tries)) - 1:
+				raise e 
+```
+
+Right before raising the exception, the lambda function **could** re-invoke itself (which gives it a new IP address; this is important because repeated timeouts are generally caused by a network connectivity issue, perhaps a blocked IP). It'd be re-invoked using the same event that triggered it initially, which would look like: 
+
+```python
+
+def wait_and_retry(self, callback, timeout):
+	"""
+	Helper method to retry a callback n times (n from environment MAX_TRIES)
+	Arguments:
+	callback (function) - function to retry
+	Returns:
+	None
+	"""
+	self.info(
+		{
+			"method": "wait_and_retry",
+			"args": {"callback.__name__": callback.__name__, "timeout": timeout},
+			"message": "Waiting and retrying",
+			"file_key": self.s3_updated_file_key,
+		}
+	)
+	max_tries = int(os.environ.get("MAX_TRIES", 3))
+	for i in range(max_tries):
+		self.debug(
+			{
+				"method": "wait_and_retry",
+				"message": f"Attempt {i+1} of {max_tries}",
+				"file_key": self.s3_updated_file_key,
+			}
+		)
+		try:
+			return callback(WebDriverWait(self.driver, timeout))
+			break
+ 
+		except TimeoutException as e:
+			# ADD THIS right before raising exception and ending
+			re_invocation_response = self.re_invoke_this_lambda()
+			if i == int(os.environ.get("MAX_TRIES", max_tries)) - 1:
+				raise e 
+
+def re_invoke_this_lambda(self): 
+	# Get the current Lambda function name from the environment variable AWS_LAMBDA_ARN
+	function_name = os.environ['AWS_LAMBDA_ARN']
+	# Initialize a boto3 client for Lambda
+	client = boto3.client('lambda') 
+	# Re-trigger the current Lambda function with the same event using the boto3 client
+
+	# Note: need to store the trigger event somewhere where this method can access it; potentially in 
+	# an instance variable at the very beginning (self.event)
+	response = client.invoke(
+		FunctionName=function_name,
+		InvocationType='Event',  # 'Event' for asynchronous execution
+		Payload=json.dumps(self.event)
+	)
+
+	return {
+		'statusCode': 200,
+		'body': json.dumps('Lambda re-triggered successfully!')
+	}
+
+```
